@@ -4,10 +4,95 @@ import { EXERCISES_DATABASE } from './exercisesData';
 export const CURRENT_TRAINER: PersonalTrainer = {
   id: 'trainer-001',
   user_id: 'user-trainer-001',
-  brand_name: 'TrainerPro Suite B2B',
-  cref: 'CREF 041928-G/SP',
+  full_name: 'Vinicius Silva',
+  brand_name: 'Vinicius Silva · Consultoria de Alta Performance',
+  cref: '041928-G/SP',
+  email: 'msvinicius.ads@gmail.com',
   phone: '+55 11 98877-6655',
+  bio: 'Especialista em Fisiologia do Exercício, Biomecânica Aplicada à Hipertrofia e Periodização de Força. Mais de 8 anos transformando físicos com ciência e acompanhamento diário individualizado.',
+  specialties: [
+    'Hipertrofia & Densidade Muscular',
+    'Biomecânica & Prevenção de Lesões',
+    'Emagrecimento & Recomposição Corporal',
+    'Periodização Avançada (PPL / Upper-Lower)'
+  ],
+  instagram: '@viniciussilva.personal',
+  pix_key: 'msvinicius.ads@gmail.com',
+  pix_key_type: 'email',
+  roster_capacity: 50,
+  auto_block_defaulters: true,
+  welcome_message: 'Seja bem-vindo à nossa consultoria de elite! Seus treinos já foram periodizados com base na sua anamnese e biomecânica.',
   avatar_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCOaPkEfNADk9jx3Q1sAiAqWQ4QgJ87AI4mKmoxwaa3XZmJc2lDZGUNlFi1VhfVQdl9OAHsKzsEFEyedx0knVSMxlxpZT6EDXmx-tJ17Q6VXxYqjFjNqgyV8C3Ik3SPKRmBVZE5ZwLStQeloMjNxnxskjKnUMkxjchrM9tfu2qD6rcdNinm9oM6NLNJJDE3W_DerEIeT4BpNcb8hZIGTMI8lbfVOmurzvB5pJiAQoIw4DYb32Mgg9RGyQ',
+  plans: [
+    {
+      id: 'plan-mensal',
+      name: 'Consultoria Mensal Basic',
+      tier: 'mensal',
+      duration_days: 30,
+      price_brl: 180,
+      description: 'Prescrição de treino individualizada com acompanhamento via App PWA e suporte semanal.',
+      benefits: [
+        'Ficha de treino biomecanicamente adaptada',
+        'Acesso ao App PWA com registro de cargas',
+        'Suporte a dúvidas via WhatsApp em horário comercial',
+        'Atualização de treino a cada 30 dias'
+      ],
+      payment_link: 'https://mpago.la/mensal-demo',
+      is_active: true
+    },
+    {
+      id: 'plan-trimestral',
+      name: 'Trimestral VIP (Mais Escolhido)',
+      tier: 'trimestral',
+      duration_days: 90,
+      price_brl: 450,
+      description: 'Periodização completa de 3 meses em blocos com análise contínua de progressão de carga e RPE.',
+      benefits: [
+        'Periodização em 3 macrociclos (Adaptação, Força, Densidade)',
+        'Análise de vídeos de execução biomecânica',
+        'Check-in quinzenal de evolução e fotos',
+        'Acesso prioritário ao WhatsApp do treinador',
+        'Desconto de 17% em relação ao mensal'
+      ],
+      is_popular: true,
+      payment_link: 'https://mpago.la/trimestral-demo',
+      is_active: true
+    },
+    {
+      id: 'plan-semestral',
+      name: 'Semestral Performance Pro',
+      tier: 'semestral',
+      duration_days: 180,
+      price_brl: 790,
+      description: 'Acompanhamento de longo prazo para transformação corporal profunda e ganhos consistentes.',
+      benefits: [
+        'Planejamento semestral com deloads estratégicos',
+        'Auditoria biomecânica com IA Gemini integrada',
+        'Ajustes ilimitados de divisões e substituições',
+        'Canal VIP direto com o treinador',
+        'Economia de mais de R$ 290 no ciclo'
+      ],
+      payment_link: 'https://mpago.la/semestral-demo',
+      is_active: true
+    },
+    {
+      id: 'plan-anual',
+      name: 'Anual Black Diamond (Elite)',
+      tier: 'anual',
+      duration_days: 365,
+      price_brl: 1390,
+      description: 'A experiência definitiva de consultoria fitness com acompanhamento de 12 meses ininterruptos.',
+      benefits: [
+        'Periodização anual completa (12 meses)',
+        'Suporte 7 dias por semana',
+        'Avaliação física por bioimpedância/dobras inclusa',
+        'Kit de boas-vindas da consultoria',
+        'Maior taxa de economia (mais de 35% OFF)'
+      ],
+      payment_link: 'https://mpago.la/anual-demo',
+      is_active: true
+    }
+  ],
   created_at: '2024-01-10T00:00:00Z'
 };
 

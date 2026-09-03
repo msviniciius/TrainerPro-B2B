@@ -1,14 +1,15 @@
 import React from 'react';
 import { Users, Dumbbell, SplitSquareVertical, BarChart3, Settings, ShieldCheck, Smartphone, Database } from 'lucide-react';
-import { CURRENT_TRAINER } from '../../data/mockData';
+import { PersonalTrainer } from '../../types/database';
 
 interface SidebarProps {
-  activeView: 'trainer-students' | 'trainer-builder' | 'trainer-analytics' | 'student-pwa' | 'supabase-sql';
-  setActiveView: (view: 'trainer-students' | 'trainer-builder' | 'trainer-analytics' | 'student-pwa' | 'supabase-sql') => void;
+  activeView: 'trainer-students' | 'trainer-builder' | 'trainer-analytics' | 'trainer-profile' | 'student-pwa' | 'supabase-sql';
+  setActiveView: (view: 'trainer-students' | 'trainer-builder' | 'trainer-analytics' | 'trainer-profile' | 'student-pwa' | 'supabase-sql') => void;
   studentCount: number;
+  trainer: PersonalTrainer;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, studentCount }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, studentCount, trainer }) => {
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-[#171f33] border-r border-[#3c4a42]/50 z-50 hidden lg:flex flex-col justify-between select-none">
       <div className="flex flex-col">
@@ -133,36 +134,40 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, stu
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs text-[#bbcabf] font-medium">Lotação do Roster</span>
             <span className="font-mono-metric text-xs text-[#4edea3] font-bold">
-              {Math.round((studentCount / 50) * 100)}%
+              {Math.round((studentCount / (trainer.roster_capacity || 50)) * 100)}%
             </span>
           </div>
           <div className="w-full h-1.5 bg-[#2d3449] rounded-full overflow-hidden mb-1.5">
             <div
               className="h-full bg-gradient-to-r from-[#10b981] to-[#4edea3] rounded-full transition-all duration-500"
-              style={{ width: `${(studentCount / 50) * 100}%` }}
+              style={{ width: `${Math.min(100, (studentCount / (trainer.roster_capacity || 50)) * 100)}%` }}
             ></div>
           </div>
           <p className="text-[11px] text-[#86948a]">
-            {studentCount} de 50 Vagas Utilizadas
+            {studentCount} de {trainer.roster_capacity || 50} Vagas Utilizadas
           </p>
         </div>
 
-        {/* Coach badge */}
-        <div className="p-2.5 flex items-center gap-3 bg-[#131b2e] rounded-xl border border-[#3c4a42]/40">
+        {/* Coach Info Badge */}
+        <div className="p-2.5 flex items-center gap-3 bg-[#131b2e] rounded-xl border border-[#3c4a42]/40 text-left w-full">
           <div className="relative flex-shrink-0">
-            <div className="w-9 h-9 rounded-full bg-[#3131c0] flex items-center justify-center text-xs font-bold text-white">
-              RF
-            </div>
+            <img
+              src={trainer.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
+              alt={trainer.full_name}
+              className="w-9 h-9 rounded-full object-cover border border-[#10b981]"
+            />
             <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-[#4edea3] rounded-full border-2 border-[#171f33]"></span>
           </div>
           <div className="flex flex-col min-w-0 flex-1">
             <div className="flex items-center justify-between gap-1">
-              <span className="text-xs font-semibold text-[#dae2fd] truncate">Rodrigo Fontes</span>
+              <span className="text-xs font-semibold text-[#dae2fd] truncate">
+                {trainer.full_name || 'Personal Trainer'}
+              </span>
               <span className="font-mono-metric text-[9px] px-1.5 py-0.2 rounded bg-[#4edea3]/15 text-[#4edea3] border border-[#4edea3]/30 uppercase font-bold leading-tight">
                 PRO
               </span>
             </div>
-            <span className="font-mono-metric text-[10px] text-[#86948a] truncate">{CURRENT_TRAINER.cref}</span>
+            <span className="font-mono-metric text-[10px] text-[#86948a] truncate">CREF {trainer.cref}</span>
           </div>
         </div>
       </div>

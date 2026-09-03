@@ -14,13 +14,37 @@ export interface Exercise {
   biomechanics_tip?: string;
 }
 
+export interface ConsultingPlan {
+  id: string;
+  name: string;
+  tier: PlanTier;
+  duration_days: number;
+  price_brl: number;
+  description: string;
+  benefits: string[];
+  is_popular?: boolean;
+  payment_link?: string;
+  is_active: boolean;
+}
+
 export interface PersonalTrainer {
   id: string;
   user_id: string;
+  full_name: string;
   brand_name: string;
   cref: string;
+  email: string;
   phone: string;
+  bio?: string;
+  specialties?: string[];
+  instagram?: string;
+  pix_key?: string;
+  pix_key_type?: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria';
   avatar_url?: string;
+  roster_capacity?: number;
+  auto_block_defaulters?: boolean;
+  welcome_message?: string;
+  plans: ConsultingPlan[];
   created_at: string;
 }
 
@@ -116,20 +140,25 @@ export interface AnamnesisInput {
   available_equipment: string[];
   injuries_or_limitations: string;
   focus_muscles: string;
+  split_template?: string;
+  intensity_preference?: string;
 }
 
 export interface GeneratedAiWorkout {
   title: string;
   cycle_description: string;
+  periodization_phase?: string;
+  weekly_volume_summary?: string;
   splits: {
-    split_day: 'A' | 'B' | 'C' | 'D';
+    split_day: 'A' | 'B' | 'C' | 'D' | 'E';
     title: string;
     focus: string;
     estimated_duration_min: number;
     target_rpe: number;
     rotator_cuff_safe: boolean;
+    warmup_activation?: string;
     exercises: {
-      exercise_id: string;
+      exercise_id?: string;
       name: string;
       target_muscle: string;
       equipment: string;
@@ -139,7 +168,27 @@ export interface GeneratedAiWorkout {
       rest_seconds: number;
       coach_notes: string;
       intensity_tag?: string;
+      tempo?: string;
     }[];
   }[];
   coach_insights: string;
 }
+
+export interface BiomechanicalSubstitute {
+  name: string;
+  target_muscle: string;
+  equipment: string;
+  biomechanical_advantage: string;
+  recommended_tempo?: string;
+  sets?: number;
+  reps?: string;
+}
+
+export interface WorkoutAuditResult {
+  overall_score: number;
+  volume_assessment: string;
+  biomechanical_risk_level: 'Baixo' | 'Moderado' | 'Alto';
+  joint_health_notes: string;
+  actionable_tips: string[];
+}
+

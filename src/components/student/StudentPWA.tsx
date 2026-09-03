@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Student, WorkoutPlan, WorkoutExercise, ExerciseLog } from '../../types/database';
+import { Student, WorkoutPlan, WorkoutExercise, ExerciseLog, PersonalTrainer } from '../../types/database';
 import { EXERCISES_DATABASE } from '../../data/exercisesData';
 import { ExerciseMedia } from '../common/ExerciseMedia';
 import { soundManager } from '../../utils/audio';
@@ -27,7 +27,9 @@ import {
   X,
   History,
   Sparkles,
-  Smartphone
+  Smartphone,
+  Copy,
+  CreditCard
 } from 'lucide-react';
 
 interface StudentPWAProps {
@@ -36,6 +38,7 @@ interface StudentPWAProps {
   onLogExerciseSet: (log: Partial<ExerciseLog>) => void;
   onExitPWA?: () => void;
   onUpdateStudent?: (id: string, updates: Partial<Student>) => void;
+  trainer?: PersonalTrainer;
 }
 
 interface ActiveSetState {
@@ -50,9 +53,11 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
   onLogExerciseSet,
   onExitPWA,
   onUpdateStudent,
+  trainer,
 }) => {
   const [activeSplitDay, setActiveSplitDay] = useState<'A' | 'B' | 'C' | 'D'>('A');
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [copiedPix, setCopiedPix] = useState(false);
 
   // Active workout plan
   const currentPlan = workoutPlans.find(p => p.split_day === activeSplitDay) || workoutPlans[0];
@@ -193,9 +198,14 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
     return `${mins.toString().padStart(2, '0')}:${remainingSecs.toString().padStart(2, '0')}`;
   };
 
+  const trainerName = trainer?.full_name || 'Rodrigo Fontes';
+  const trainerCref = trainer?.cref || '041928-G/SP';
+  const trainerPhone = trainer?.phone ? trainer.phone.replace(/\D/g, '') : '5511988776655';
+  const trainerPix = trainer?.pix_key || 'rodrigo.fontes@treinador.com';
+
   // WhatsApp renew link
-  const renewWhatsAppMessage = `Olá Professor Rodrigo! Meu acesso ao TrainerPro venceu ou está prestes a vencer. Gostaria de renovar meu plano para continuar os treinos!`;
-  const renewWhatsAppUrl = `https://wa.me/5511988776655?text=${encodeURIComponent(renewWhatsAppMessage)}`;
+  const renewWhatsAppMessage = `Olá Professor ${trainerName.split(' ')[0]}! Meu acesso ao app venceu ou está prestes a vencer. Gostaria de renovar meu plano (${student.plan_name}) para continuar os treinos!`;
+  const renewWhatsAppUrl = `https://wa.me/${trainerPhone}?text=${encodeURIComponent(renewWhatsAppMessage)}`;
 
   // -------------------------------------------------------------
   // RENDER: BLOCKED / EXPIRED ACCESS GUARD
@@ -217,36 +227,62 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
           </button>
         )}
 
-        <div className="w-full max-w-md bg-[#171f33] rounded-3xl p-6 sm:p-8 border border-[#93000a]/40 shadow-2xl text-center space-y-6 animate-in zoom-in-95">
-          <div className="w-20 h-20 rounded-2xl bg-[#93000a]/30 text-[#ffb4ab] flex items-center justify-center mx-auto border border-[#ffb4ab]/30 shadow-lg shadow-[#93000a]/30">
-            <Lock className="w-10 h-10" />
+        <div className="w-full max-w-md bg-[#171f33] rounded-3xl p-6 sm:p-8 border border-[#93000a]/40 shadow-2xl text-center space-y-5 animate-in zoom-in-95">
+          <div className="w-16 h-16 rounded-2xl bg-[#93000a]/30 text-[#ffb4ab] flex items-center justify-center mx-auto border border-[#ffb4ab]/30 shadow-lg shadow-[#93000a]/30">
+            <Lock className="w-8 h-8" />
           </div>
 
-          <div className="space-y-2">
-            <span className="font-mono-metric text-xs uppercase font-bold text-[#ffb4ab] tracking-wider bg-[#93000a]/30 px-3 py-1 rounded-full border border-[#ffb4ab]/20">
+          <div className="space-y-1.5">
+            <span className="font-mono-metric text-[11px] uppercase font-bold text-[#ffb4ab] tracking-wider bg-[#93000a]/30 px-3 py-1 rounded-full border border-[#ffb4ab]/20">
               Acesso Temporariamente Suspenso
             </span>
-            <h1 className="text-2xl font-bold text-[#dae2fd]">
+            <h1 className="text-xl font-bold text-[#dae2fd]">
               Olá, {student.full_name.split(' ')[0]}!
             </h1>
-            <p className="text-sm text-[#bbcabf] leading-relaxed">
+            <p className="text-xs text-[#bbcabf] leading-relaxed">
               O seu plano <strong className="text-[#dae2fd]">{student.plan_name}</strong> expirou em{' '}
               <strong className="text-[#ffb4ab]">
                 {new Date(student.access_expiration_date).toLocaleDateString('pt-BR')}
               </strong>
-              . Renove sua assinatura com o Personal Trainer para desbloquear sua ficha e histórico.
+              . Renove sua assinatura com o Personal Trainer para reativar seu acesso.
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-[#0b1326] border border-[#3c4a42]/50 text-left space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-[#86948a]">Personal Trainer:</span>
-              <span className="font-semibold text-[#dae2fd]">Rodrigo Fontes (CREF 041928-G/SP)</span>
+          {/* Trainer Card */}
+          <div className="p-3.5 rounded-2xl bg-[#0b1326] border border-[#3c4a42]/50 text-left space-y-2">
+            <div className="flex items-center gap-3">
+              {trainer?.avatar_url ? (
+                <img src={trainer.avatar_url} alt={trainerName} className="w-10 h-10 rounded-full object-cover border border-[#4edea3]/40" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-[#10b981]/20 text-[#4edea3] flex items-center justify-center font-bold text-sm">
+                  {trainerName.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0">
+                <span className="text-xs font-bold text-[#dae2fd] block truncate">{trainerName}</span>
+                <span className="font-mono-metric text-[11px] text-[#4edea3]">CREF {trainerCref}</span>
+              </div>
             </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-[#86948a]">Status da Trava:</span>
-              <span className="font-mono-metric font-bold text-[#ffb4ab]">Bloqueio Automático Ativo</span>
-            </div>
+
+            {trainer?.pix_key && (
+              <div className="pt-2 border-t border-[#3c4a42]/40 flex items-center justify-between text-xs">
+                <div className="min-w-0">
+                  <span className="text-[10px] uppercase font-mono-metric text-[#86948a] block">Chave Pix ({trainer.pix_key_type || 'Email'})</span>
+                  <span className="font-mono-metric text-xs text-[#dae2fd] truncate block font-medium">{trainer.pix_key}</span>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(trainer.pix_key || '');
+                    setCopiedPix(true);
+                    setTimeout(() => setCopiedPix(false), 2000);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-[#222a3d] hover:bg-[#31394d] text-xs font-mono-metric text-[#4edea3] flex items-center gap-1"
+                >
+                  <Copy className="w-3 h-3" />
+                  <span>{copiedPix ? 'Copiado!' : 'Copiar'}</span>
+                </button>
+              </div>
+            )}
           </div>
 
           <a
@@ -256,7 +292,7 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
             className="w-full flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#10b981] to-[#4edea3] text-[#003824] font-bold text-sm hover:brightness-110 shadow-lg shadow-[#10b981]/20 transition-all active:scale-95"
           >
             <Send className="w-4 h-4" />
-            <span>Renovar com meu Personal Trainer</span>
+            <span>Falar com o Personal no WhatsApp</span>
           </a>
 
           {/* Trainer override demo button */}
@@ -270,7 +306,7 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
                   is_active: true,
                 });
               }}
-              className="text-xs text-[#86948a] hover:text-[#4edea3] underline font-mono-metric"
+              className="text-xs text-[#86948a] hover:text-[#4edea3] underline font-mono-metric pt-1 block mx-auto"
             >
               [Demo Coach: Reativar +90 dias com 1 clique]
             </button>

@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
-import { Student, WorkoutPlan, ExerciseLog, WorkoutSession } from './types/database';
-import { INITIAL_STUDENTS, INITIAL_WORKOUT_PLANS, MOCK_EXERCISE_LOGS, MOCK_SESSIONS } from './data/mockData';
+import { Student, WorkoutPlan, ExerciseLog, WorkoutSession, PersonalTrainer } from './types/database';
+import { INITIAL_STUDENTS, INITIAL_WORKOUT_PLANS, MOCK_EXERCISE_LOGS, MOCK_SESSIONS, CURRENT_TRAINER } from './data/mockData';
 import { Header } from './components/common/Header';
 import { Sidebar } from './components/common/Sidebar';
 import { StudentManagement } from './components/trainer/StudentManagement';
 import { WorkoutBuilder } from './components/trainer/WorkoutBuilder';
 import { AnalyticsReport } from './components/trainer/AnalyticsReport';
+import { TrainerProfileSettings } from './components/trainer/TrainerProfileSettings';
 import { StudentPWA } from './components/student/StudentPWA';
 import { SqlViewer } from './components/sql/SqlViewer';
 import { Users, SplitSquareVertical, BarChart3, Smartphone, Database } from 'lucide-react';
 
 export default function App() {
   const [activeView, setActiveView] = useState<
-    'trainer-students' | 'trainer-builder' | 'trainer-analytics' | 'student-pwa' | 'supabase-sql'
+    'trainer-students' | 'trainer-builder' | 'trainer-analytics' | 'trainer-profile' | 'student-pwa' | 'supabase-sql'
   >('trainer-students');
 
+  const [trainer, setTrainer] = useState<PersonalTrainer>(CURRENT_TRAINER);
   const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
   const [selectedStudent, setSelectedStudent] = useState<Student>(INITIAL_STUDENTS[0]);
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>(INITIAL_WORKOUT_PLANS);
@@ -110,6 +112,7 @@ export default function App() {
         onLogExerciseSet={handleLogExerciseSet}
         onExitPWA={() => setActiveView('trainer-students')}
         onUpdateStudent={handleUpdateStudent}
+        trainer={trainer}
       />
     );
   }
@@ -121,6 +124,7 @@ export default function App() {
         activeView={activeView}
         setActiveView={setActiveView}
         studentCount={students.length}
+        trainer={trainer}
       />
 
       {/* Top App Header */}
@@ -130,6 +134,7 @@ export default function App() {
         onOpenNewStudentModal={() => setIsNewStudentModalOpen(true)}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
+        trainer={trainer}
       />
 
       {/* Main Content Area */}
@@ -146,6 +151,13 @@ export default function App() {
             isNewStudentModalOpen={isNewStudentModalOpen}
             setIsNewStudentModalOpen={setIsNewStudentModalOpen}
             searchQuery={searchQuery}
+          />
+        )}
+
+        {activeView === 'trainer-profile' && (
+          <TrainerProfileSettings
+            trainer={trainer}
+            onUpdateTrainer={(updated) => setTrainer(updated)}
           />
         )}
 
@@ -172,55 +184,45 @@ export default function App() {
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 h-16 bg-[#171f33]/95 backdrop-blur-md border-t border-[#3c4a42]/40 z-40 lg:hidden flex items-center justify-around px-2">
+      <nav className="fixed bottom-0 left-0 right-0 h-16 bg-[#171f33]/95 backdrop-blur-md border-t border-[#3c4a42]/40 z-40 lg:hidden flex items-center justify-around px-1">
         <button
           onClick={() => setActiveView('trainer-students')}
-          className={`flex flex-col items-center gap-1 p-1 text-xs font-semibold ${
+          className={`flex flex-col items-center gap-1 p-1 text-[11px] font-semibold ${
             activeView === 'trainer-students' ? 'text-[#4edea3]' : 'text-[#86948a]'
           }`}
         >
-          <Users className="w-5 h-5" />
+          <Users className="w-4 h-4" />
           <span>Alunos</span>
         </button>
 
         <button
           onClick={() => setActiveView('trainer-builder')}
-          className={`flex flex-col items-center gap-1 p-1 text-xs font-semibold ${
+          className={`flex flex-col items-center gap-1 p-1 text-[11px] font-semibold ${
             activeView === 'trainer-builder' ? 'text-[#4edea3]' : 'text-[#86948a]'
           }`}
         >
-          <SplitSquareVertical className="w-5 h-5" />
+          <SplitSquareVertical className="w-4 h-4" />
           <span>Prescritor</span>
         </button>
 
         <button
           onClick={() => setActiveView('trainer-analytics')}
-          className={`flex flex-col items-center gap-1 p-1 text-xs font-semibold ${
+          className={`flex flex-col items-center gap-1 p-1 text-[11px] font-semibold ${
             activeView === 'trainer-analytics' ? 'text-[#4edea3]' : 'text-[#86948a]'
           }`}
         >
-          <BarChart3 className="w-5 h-5" />
+          <BarChart3 className="w-4 h-4" />
           <span>Analytics</span>
         </button>
 
         <button
           onClick={() => setActiveView('student-pwa')}
-          className={`flex flex-col items-center gap-1 p-1 text-xs font-semibold ${
+          className={`flex flex-col items-center gap-1 p-1 text-[11px] font-semibold ${
             activeView === 'student-pwa' ? 'text-[#c0c1ff]' : 'text-[#86948a]'
           }`}
         >
-          <Smartphone className="w-5 h-5" />
+          <Smartphone className="w-4 h-4" />
           <span>App Aluno</span>
-        </button>
-
-        <button
-          onClick={() => setActiveView('supabase-sql')}
-          className={`flex flex-col items-center gap-1 p-1 text-xs font-semibold ${
-            activeView === 'supabase-sql' ? 'text-[#ffb95f]' : 'text-[#86948a]'
-          }`}
-        >
-          <Database className="w-5 h-5" />
-          <span>SQL</span>
         </button>
       </nav>
     </div>
