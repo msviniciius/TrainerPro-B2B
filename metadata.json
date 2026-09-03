@@ -1,0 +1,6 @@
+{
+  "name": "TrainerPro B2B - Gestão de Treinos & PWA Aluno",
+  "description": "Plataforma B2B para Personal Trainers com construtor de treinos, Copiloto IA Gemini, controle de acesso e PWA móvel para alunos com timer de descanso e registro de cargas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

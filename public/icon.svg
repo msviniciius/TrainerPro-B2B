@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="128" fill="#0B1326"/>
+  <rect x="24" y="24" width="464" height="464" rx="104" stroke="#171F33" stroke-width="8"/>
+  <defs>
+    <linearGradient id="primaryGrad" x1="64" y1="64" x2="448" y2="448" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4EDEA3"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+    <linearGradient id="indigoGrad" x1="128" y1="128" x2="384" y2="384" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C0C1FF"/>
+      <stop offset="1" stop-color="#3131C0"/>
+    </linearGradient>
+  </defs>
+  <!-- Dumbbell / Trophy emblem -->
+  <path d="M160 256H352M128 192V320M384 192V320M96 224V288M416 224V288" stroke="url(#primaryGrad)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="256" cy="256" r="44" fill="#171F33" stroke="#4EDEA3" stroke-width="8"/>
+  <path d="M236 256L250 270L278 242" stroke="#4EDEA3" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
