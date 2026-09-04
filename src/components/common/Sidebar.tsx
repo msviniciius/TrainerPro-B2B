@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Dumbbell, SplitSquareVertical, BarChart3, Settings, ShieldCheck, Smartphone, Database } from 'lucide-react';
+import { Users, Dumbbell, SplitSquareVertical, BarChart3, Settings, ShieldCheck, Smartphone, Database, LogOut } from 'lucide-react';
 import { PersonalTrainer } from '../../types/database';
 
 interface SidebarProps {
@@ -7,9 +7,10 @@ interface SidebarProps {
   setActiveView: (view: 'trainer-students' | 'trainer-builder' | 'trainer-analytics' | 'trainer-profile' | 'student-pwa' | 'supabase-sql') => void;
   studentCount: number;
   trainer: PersonalTrainer;
+  onLogout?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, studentCount, trainer }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, studentCount, trainer, onLogout }) => {
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-[#171f33] border-r border-[#3c4a42]/50 z-50 hidden lg:flex flex-col justify-between select-none">
       <div className="flex flex-col">
@@ -149,7 +150,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, stu
         </div>
 
         {/* Coach Info Badge */}
-        <div className="p-2.5 flex items-center gap-3 bg-[#131b2e] rounded-xl border border-[#3c4a42]/40 text-left w-full">
+        <div className="p-2.5 flex items-center gap-2.5 bg-[#131b2e] rounded-xl border border-[#3c4a42]/40 text-left w-full">
           <div className="relative flex-shrink-0">
             <img
               src={trainer.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
@@ -159,16 +160,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, stu
             <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-[#4edea3] rounded-full border-2 border-[#171f33]"></span>
           </div>
           <div className="flex flex-col min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-xs font-semibold text-[#dae2fd] truncate">
-                {trainer.full_name || 'Personal Trainer'}
-              </span>
-              <span className="font-mono-metric text-[9px] px-1.5 py-0.2 rounded bg-[#4edea3]/15 text-[#4edea3] border border-[#4edea3]/30 uppercase font-bold leading-tight">
-                PRO
-              </span>
-            </div>
+            <span className="text-xs font-semibold text-[#dae2fd] truncate">
+              {trainer.full_name || 'Personal Trainer'}
+            </span>
             <span className="font-mono-metric text-[10px] text-[#86948a] truncate">CREF {trainer.cref}</span>
           </div>
+          {onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="p-1.5 rounded-lg text-[#ffb4ab]/70 hover:text-[#ffb4ab] hover:bg-[#93000a]/20 transition-all flex-shrink-0"
+              title="Sair da Conta (Desconectar)"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </aside>

@@ -28,7 +28,8 @@ import {
   Eye,
   Sliders,
   CheckSquare,
-  X
+  X,
+  LogOut
 } from 'lucide-react';
 import { PersonalTrainer } from '../../types/database';
 import { formatWhatsAppPhone } from '../../utils/formatters';
@@ -36,6 +37,7 @@ import { formatWhatsAppPhone } from '../../utils/formatters';
 interface TrainerProfileSettingsProps {
   trainer: PersonalTrainer;
   onUpdateTrainer: (updated: PersonalTrainer) => void;
+  onLogout?: () => void;
 }
 
 const DEFAULT_SPECIALTIES = [
@@ -52,6 +54,7 @@ const DEFAULT_SPECIALTIES = [
 export const TrainerProfileSettings: React.FC<TrainerProfileSettingsProps> = ({
   trainer,
   onUpdateTrainer,
+  onLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'pix' | 'settings'>('profile');
   const [formData, setFormData] = useState<PersonalTrainer>({ ...trainer });
@@ -625,6 +628,16 @@ export const TrainerProfileSettings: React.FC<TrainerProfileSettingsProps> = ({
                 <span className="text-sm font-bold text-[#dae2fd]">{formData.full_name} ({formData.brand_name})</span>
                 <span className="text-xs text-[#4edea3] block font-mono-metric">E-mail: {formData.email} • CREF: {formData.cref}</span>
               </div>
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="px-3.5 py-2 rounded-xl bg-[#ba1a1a]/20 hover:bg-[#ba1a1a] text-[#ffb4ab] hover:text-white border border-[#ba1a1a]/40 text-xs font-bold transition-all flex items-center justify-center gap-2 self-start sm:self-auto cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Sair da Conta</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

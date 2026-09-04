@@ -29,7 +29,8 @@ import {
   Sparkles,
   Smartphone,
   Copy,
-  CreditCard
+  CreditCard,
+  LogOut
 } from 'lucide-react';
 
 interface StudentPWAProps {
@@ -37,6 +38,7 @@ interface StudentPWAProps {
   workoutPlans: WorkoutPlan[];
   onLogExerciseSet: (log: Partial<ExerciseLog>) => void;
   onExitPWA?: () => void;
+  onLogout?: () => void;
   onUpdateStudent?: (id: string, updates: Partial<Student>) => void;
   trainer?: PersonalTrainer;
 }
@@ -52,6 +54,7 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
   workoutPlans,
   onLogExerciseSet,
   onExitPWA,
+  onLogout,
   onUpdateStudent,
   trainer,
 }) => {
@@ -218,14 +221,25 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
         <div className="absolute bottom-1/4 -right-20 w-80 h-80 bg-[#3131c0]/20 rounded-full blur-3xl pointer-events-none"></div>
 
         {/* Exit Preview pill if simulated in desktop */}
-        {onExitPWA && (
-          <button
-            onClick={onExitPWA}
-            className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#171f33] text-[#bbcabf] text-xs font-semibold border border-[#3c4a42]/50 hover:text-white"
-          >
-            ← Voltar ao Dashboard do Coach
-          </button>
-        )}
+        <div className="absolute top-4 left-4 flex items-center gap-2">
+          {onExitPWA && (
+            <button
+              onClick={onExitPWA}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#171f33] text-[#bbcabf] text-xs font-semibold border border-[#3c4a42]/50 hover:text-white"
+            >
+              ← Voltar ao Painel
+            </button>
+          )}
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#ba1a1a]/20 text-[#ffb4ab] text-xs font-semibold border border-[#ba1a1a]/40 hover:bg-[#ba1a1a] hover:text-white transition-all"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sair (Login)</span>
+            </button>
+          )}
+        </div>
 
         <div className="w-full max-w-md bg-[#171f33] rounded-3xl p-6 sm:p-8 border border-[#93000a]/40 shadow-2xl text-center space-y-5 animate-in zoom-in-95">
           <div className="w-16 h-16 rounded-2xl bg-[#93000a]/30 text-[#ffb4ab] flex items-center justify-center mx-auto border border-[#ffb4ab]/30 shadow-lg shadow-[#93000a]/30">
@@ -355,6 +369,16 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
                 className="px-2.5 py-1.5 rounded-xl bg-[#222a3d] text-[#bbcabf] hover:text-[#dae2fd] text-xs font-semibold border border-[#3c4a42]/40"
               >
                 Coach View
+              </button>
+            )}
+
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="p-2 rounded-xl bg-[#ba1a1a]/20 text-[#ffb4ab] hover:bg-[#ba1a1a] hover:text-white transition-all border border-[#ba1a1a]/30"
+                title="Sair (Ir para a tela de Login)"
+              >
+                <LogOut className="w-4 h-4" />
               </button>
             )}
           </div>

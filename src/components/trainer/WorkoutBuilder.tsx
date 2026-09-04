@@ -27,7 +27,6 @@ import {
   Activity,
   Bot,
   Zap,
-  Info,
   Sliders,
   Maximize2
 } from 'lucide-react';
@@ -36,7 +35,7 @@ interface WorkoutBuilderProps {
   student: Student;
   workoutPlans: WorkoutPlan[];
   onSaveWorkoutPlans: (plans: WorkoutPlan[]) => void;
-  onViewStudentPWA: () => void;
+  onViewStudentPWA?: () => void;
 }
 
 const INTENSITY_PRESETS = [
@@ -357,15 +356,6 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
             >
               <Bot className="w-4 h-4" />
               <span>Copiloto IA</span>
-            </button>
-
-            {/* Test on Student PWA */}
-            <button
-              onClick={onViewStudentPWA}
-              className="flex items-center gap-2 h-10 px-3.5 rounded-xl bg-[#222a3d] text-[#dae2fd] hover:bg-[#31394d] transition-colors text-xs font-semibold border border-[#3c4a42]/40"
-              title="Visualizar exatamente como o aluno verá no celular"
-            >
-              <span>Ver no App do Aluno</span>
             </button>
 
             {/* Save & Publish */}
@@ -804,23 +794,6 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
                             <option key={t} value={t.split(' ')[0]}>{t}</option>
                           ))}
                         </select>
-                      </div>
-                    </div>
-
-                    {/* Coach Notes Field */}
-                    <div className="flex items-start gap-2.5 bg-[#0b1326] p-3 rounded-xl border border-[#3c4a42]/30">
-                      <Info className="w-4 h-4 text-[#4edea3] mt-0.5 flex-shrink-0" />
-                      <div className="flex-1 space-y-1">
-                        <span className="font-mono-metric text-[10px] uppercase text-[#4edea3] font-bold">
-                          Observação Técnica & Instrução de Execução:
-                        </span>
-                        <input
-                          type="text"
-                          value={workoutExercise.coach_notes}
-                          onChange={(e) => handleUpdateExerciseParam(workoutExercise.id, { coach_notes: e.target.value })}
-                          placeholder="Instruções de cadência, ângulo de banco, proteção articular..."
-                          className="w-full bg-transparent text-xs text-[#bbcabf] focus:outline-none focus:text-[#dae2fd] border-b border-transparent focus:border-[#4edea3]/50 pb-0.5"
-                        />
                       </div>
                     </div>
                   </div>

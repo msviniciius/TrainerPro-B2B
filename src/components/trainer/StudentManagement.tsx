@@ -12,7 +12,6 @@ import {
   UserPlus, 
   Edit3, 
   TrendingUp, 
-  Key, 
   MessageSquare, 
   CheckCircle, 
   CheckCircle2,
@@ -35,7 +34,7 @@ interface StudentManagementProps {
   onUpdateStudent: (id: string, updates: Partial<Student>) => void;
   onViewAnalytics: (student: Student) => void;
   onEditWorkout: (student: Student) => void;
-  onSimulateAsStudent: (student: Student) => void;
+  onSimulateAsStudent?: (student: Student) => void;
   isNewStudentModalOpen: boolean;
   setIsNewStudentModalOpen: (open: boolean) => void;
   searchQuery: string;
@@ -54,7 +53,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   searchQuery,
 }) => {
   const [filterTab, setFilterTab] = useState<'all' | 'active' | 'expiring' | 'blocked'>('all');
-  const [goalFilter, setGoalFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'expiration-asc' | 'expiration-desc' | 'name-asc' | 'recent-workout'>('expiration-asc');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
@@ -120,11 +118,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         if (filterTab === 'expiring' && info.status !== 'expiring') return false;
         if (filterTab === 'blocked' && info.status !== 'blocked') return false;
 
-        // Goal filter
-        if (goalFilter !== 'all') {
-          if (!student.goal.toLowerCase().includes(goalFilter.toLowerCase())) return false;
-        }
-
         // Search Query
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
@@ -150,7 +143,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         }
         return 0;
       });
-  }, [students, filterTab, goalFilter, sortBy, searchQuery]);
+  }, [students, filterTab, sortBy, searchQuery]);
 
   const handleCreateStudent = (e: React.FormEvent) => {
     e.preventDefault();
@@ -247,7 +240,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setRenewCustomDate(baseDate.toISOString().split('T')[0]);
   };
 
-  const hasActiveFilters = filterTab !== 'all' || goalFilter !== 'all' || searchQuery.trim().length > 0;
+  const hasActiveFilters = filterTab !== 'all' || searchQuery.trim().length > 0;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1680px] mx-auto">
@@ -509,22 +502,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
         {/* Right: Dropdowns & View Mode Toggle */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Goal Filter */}
-          <div className="flex items-center gap-1.5 bg-[#0b1326] px-3 py-1 rounded-xl border border-[#3c4a42]/40">
-            <Target className="w-3.5 h-3.5 text-[#86948a]" />
-            <select
-              value={goalFilter}
-              onChange={(e) => setGoalFilter(e.target.value)}
-              className="h-8 bg-transparent text-[#dae2fd] text-xs focus:outline-none cursor-pointer pr-1"
-            >
-              <option value="all" className="bg-[#171f33]">Todos os Objetivos</option>
-              <option value="hipertrofia" className="bg-[#171f33]">Hipertrofia</option>
-              <option value="emagrecimento" className="bg-[#171f33]">Emagrecimento</option>
-              <option value="força" className="bg-[#171f33]">Força</option>
-              <option value="condicionamento" className="bg-[#171f33]">Condicionamento</option>
-            </select>
-          </div>
-
           {/* Sort By */}
           <div className="flex items-center gap-1.5 bg-[#0b1326] px-3 py-1 rounded-xl border border-[#3c4a42]/40">
             <ArrowUpDown className="w-3.5 h-3.5 text-[#86948a]" />
@@ -581,12 +558,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <button onClick={() => setFilterTab('all')} className="hover:text-[#ffb4ab]">×</button>
               </span>
             )}
-            {goalFilter !== 'all' && (
-              <span className="font-mono-metric px-2 py-0.5 rounded-full bg-[#222a3d] text-[#dae2fd] border border-[#3c4a42]/40 flex items-center gap-1">
-                Objetivo: {goalFilter}
-                <button onClick={() => setGoalFilter('all')} className="hover:text-[#ffb4ab]">×</button>
-              </span>
-            )}
             {searchQuery.trim().length > 0 && (
               <span className="font-mono-metric px-2 py-0.5 rounded-full bg-[#222a3d] text-[#dae2fd] border border-[#3c4a42]/40 flex items-center gap-1">
                 Busca: "{searchQuery}"
@@ -599,7 +570,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           <button
             onClick={() => {
               setFilterTab('all');
-              setGoalFilter('all');
             }}
             className="text-xs text-[#4edea3] hover:underline font-semibold"
           >
@@ -624,7 +594,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             <button
               onClick={() => {
                 setFilterTab('all');
-                setGoalFilter('all');
               }}
               className="px-4 py-2 rounded-xl bg-[#222a3d] text-xs font-semibold text-[#4edea3] hover:bg-[#31394d] transition-colors"
             >
@@ -694,20 +663,20 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     </div>
 
                     {/* Status Pill Badge */}
-                    <div>
+                    <div className="flex-shrink-0 whitespace-nowrap">
                       {isBlocked ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#ba1a1a]/30 text-[#ffb4ab] border border-[#ffb4ab]/30 font-mono-metric text-[10px] font-bold">
-                          <Lock className="w-2.5 h-2.5" />
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#ba1a1a]/30 text-[#ffb4ab] border border-[#ffb4ab]/30 font-mono-metric text-[10px] font-bold whitespace-nowrap flex-shrink-0">
+                          <Lock className="w-2.5 h-2.5 flex-shrink-0" />
                           Bloqueado
                         </span>
                       ) : isExpiring ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#ffb95f]/20 text-[#ffb95f] border border-[#ffb95f]/30 font-mono-metric text-[10px] font-bold">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#ffb95f] animate-ping" />
-                          Vence em {access.diffDays}d
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#ffb95f]/20 text-[#ffb95f] border border-[#ffb95f]/30 font-mono-metric text-[10px] font-bold whitespace-nowrap flex-shrink-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#ffb95f] animate-ping flex-shrink-0" />
+                          <span>Vence em {access.diffDays}d</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#10b981]/20 text-[#4edea3] border border-[#4edea3]/30 font-mono-metric text-[10px] font-semibold">
-                          <CheckCircle2 className="w-2.5 h-2.5" />
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#10b981]/20 text-[#4edea3] border border-[#4edea3]/30 font-mono-metric text-[10px] font-semibold whitespace-nowrap flex-shrink-0">
+                          <CheckCircle2 className="w-2.5 h-2.5 flex-shrink-0" />
                           Ativo
                         </span>
                       )}
@@ -715,22 +684,22 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   </div>
 
                   {/* Expiration Countdown Ribbon */}
-                  <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
+                  <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs whitespace-nowrap ${
                     isBlocked
                       ? 'bg-[#93000a]/20 border-[#ffb4ab]/20 text-[#ffb4ab]'
                       : isExpiring
                       ? 'bg-[#ffb95f]/10 border-[#ffb95f]/30 text-[#ffb95f]'
                       : 'bg-[#0b1326] border-[#3c4a42]/40 text-[#bbcabf]'
                   }`}>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-3.5 h-3.5 opacity-70" />
-                      <span className="text-[11px] font-medium">Vencimento:</span>
-                      <strong className="font-mono-metric text-xs font-semibold">
+                    <div className="flex items-center gap-2 whitespace-nowrap flex-shrink-0">
+                      <Calendar className="w-3.5 h-3.5 opacity-70 flex-shrink-0" />
+                      <span className="text-[11px] font-medium whitespace-nowrap">Vencimento:</span>
+                      <strong className="font-mono-metric text-xs font-semibold whitespace-nowrap">
                         {new Date(student.access_expiration_date).toLocaleDateString('pt-BR')}
                       </strong>
                     </div>
                     
-                    <span className="font-mono-metric text-[11px] font-bold">
+                    <span className="font-mono-metric text-[11px] font-bold whitespace-nowrap flex-shrink-0 ml-2">
                       {isBlocked
                         ? `Expirou há ${Math.abs(access.diffDays)}d`
                         : access.diffDays === 0
@@ -797,16 +766,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   >
                     <TrendingUp className="w-4 h-4" />
                   </button>
-
-                  {/* Test in PWA simulator */}
-                  <button
-                    type="button"
-                    onClick={() => onSimulateAsStudent(student)}
-                    className="p-1.5 rounded-lg bg-[#222a3d] hover:bg-[#31394d] text-[#bbcabf] hover:text-[#ffb95f] border border-[#3c4a42]/40 transition-colors"
-                    title="Simular App do Aluno (PWA)"
-                  >
-                    <Key className="w-4 h-4" />
-                  </button>
                 </div>
               </div>
             );
@@ -822,9 +781,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   <th className="py-3.5 px-4 sm:px-6 font-semibold">Aluno & Contato</th>
                   <th className="py-3.5 px-4 font-semibold">Objetivo & Ficha</th>
                   <th className="py-3.5 px-4 font-semibold">Último Treino</th>
-                  <th className="py-3.5 px-4 font-semibold">Vencimento</th>
-                  <th className="py-3.5 px-4 font-semibold">Status</th>
-                  <th className="py-3.5 px-4 sm:px-6 font-semibold text-right">Ações Rápidas</th>
+                  <th className="py-3.5 px-4 font-semibold whitespace-nowrap">Vencimento</th>
+                  <th className="py-3.5 px-4 font-semibold whitespace-nowrap">Status</th>
+                  <th className="py-3.5 px-4 sm:px-6 font-semibold text-right whitespace-nowrap">Ações Rápidas</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#3c4a42]/30 text-sm">
@@ -914,10 +873,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       </td>
 
                       {/* Column 4: Expiration Date */}
-                      <td className="py-4 px-4">
-                        <div className="flex flex-col font-mono-metric">
+                      <td className="py-4 px-4 whitespace-nowrap">
+                        <div className="flex flex-col font-mono-metric whitespace-nowrap">
                           <span
-                            className={`text-xs font-semibold ${
+                            className={`text-xs font-semibold whitespace-nowrap ${
                               isBlocked
                                 ? 'text-[#ffb4ab]'
                                 : isExpiring
@@ -928,7 +887,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             {new Date(student.access_expiration_date).toLocaleDateString('pt-BR')}
                           </span>
                           <span
-                            className={`text-[11px] font-medium ${
+                            className={`text-[11px] font-medium whitespace-nowrap ${
                               isBlocked
                                 ? 'text-[#ffb4ab]'
                                 : isExpiring
@@ -946,27 +905,27 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       </td>
 
                       {/* Column 5: Status Badge */}
-                      <td className="py-4 px-4">
+                      <td className="py-4 px-4 whitespace-nowrap">
                         {isBlocked ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#ba1a1a]/30 text-[#ffb4ab] font-mono-metric text-xs font-bold border border-[#ffb4ab]/20">
-                            <Lock className="w-3 h-3" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#ba1a1a]/30 text-[#ffb4ab] font-mono-metric text-xs font-bold border border-[#ffb4ab]/20 whitespace-nowrap flex-shrink-0">
+                            <Lock className="w-3 h-3 flex-shrink-0" />
                             Bloqueado
                           </span>
                         ) : isExpiring ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#ffb95f]/20 text-[#ffb95f] font-mono-metric text-xs font-bold border border-[#ffb95f]/30">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#ffb95f] animate-ping" />
-                            Vence em {access.diffDays}d
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#ffb95f]/20 text-[#ffb95f] font-mono-metric text-xs font-bold border border-[#ffb95f]/30 whitespace-nowrap flex-shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#ffb95f] animate-ping flex-shrink-0" />
+                            <span>Vence em {access.diffDays}d</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#10b981]/20 text-[#4edea3] font-mono-metric text-xs font-semibold border border-[#4edea3]/30">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-[#4edea3]" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#10b981]/20 text-[#4edea3] font-mono-metric text-xs font-semibold border border-[#4edea3]/30 whitespace-nowrap flex-shrink-0">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[#4edea3] flex-shrink-0" />
                             Ativo
                           </span>
                         )}
                       </td>
 
                       {/* Column 6: Actions */}
-                      <td className="py-4 px-4 sm:px-6 text-right">
+                      <td className="py-4 px-4 sm:px-6 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           {/* WhatsApp */}
                           <button
@@ -1003,15 +962,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             title="Relatório Analítico de Cargas"
                           >
                             <TrendingUp className="w-4 h-4" />
-                          </button>
-
-                          {/* PWA simulator */}
-                          <button
-                            onClick={() => onSimulateAsStudent(student)}
-                            className="p-1.5 rounded-lg text-[#bbcabf] hover:text-[#ffb95f] hover:bg-[#222a3d] transition-colors"
-                            title="Simular App do Aluno"
-                          >
-                            <Key className="w-4 h-4" />
                           </button>
                         </div>
                       </td>

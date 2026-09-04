@@ -9,9 +9,11 @@ import { AnalyticsReport } from './components/trainer/AnalyticsReport';
 import { TrainerProfileSettings } from './components/trainer/TrainerProfileSettings';
 import { StudentPWA } from './components/student/StudentPWA';
 import { SqlViewer } from './components/sql/SqlViewer';
+import { LoginScreen } from './components/auth/LoginScreen';
 import { Users, SplitSquareVertical, BarChart3, Smartphone, Database } from 'lucide-react';
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [activeView, setActiveView] = useState<
     'trainer-students' | 'trainer-builder' | 'trainer-analytics' | 'trainer-profile' | 'student-pwa' | 'supabase-sql'
   >('trainer-students');
@@ -103,6 +105,37 @@ export default function App() {
     setActiveView('student-pwa');
   };
 
+  // Authentication & Logout handlers
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+  };
+
+  const handleLoginTrainer = (email: string) => {
+    if (email && email !== trainer.email) {
+      setTrainer(prev => ({ ...prev, email }));
+    }
+    setIsAuthenticated(true);
+    setActiveView('trainer-students');
+  };
+
+  const handleLoginStudent = (student: Student) => {
+    setSelectedStudent(student);
+    setIsAuthenticated(true);
+    setActiveView('student-pwa');
+  };
+
+  // If not authenticated, render Login Screen
+  if (!isAuthenticated) {
+    return (
+      <LoginScreen
+        trainer={trainer}
+        students={students}
+        onLoginTrainer={handleLoginTrainer}
+        onLoginStudent={handleLoginStudent}
+      />
+    );
+  }
+
   // If in PWA student mode, show full-screen mobile app layout
   if (activeView === 'student-pwa') {
     return (
@@ -111,6 +144,7 @@ export default function App() {
         workoutPlans={workoutPlans}
         onLogExerciseSet={handleLogExerciseSet}
         onExitPWA={() => setActiveView('trainer-students')}
+        onLogout={handleLogout}
         onUpdateStudent={handleUpdateStudent}
         trainer={trainer}
       />
@@ -125,6 +159,7 @@ export default function App() {
         setActiveView={setActiveView}
         studentCount={students.length}
         trainer={trainer}
+        onLogout={handleLogout}
       />
 
       {/* Top App Header */}
@@ -135,6 +170,7 @@ export default function App() {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         trainer={trainer}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area */}
@@ -158,6 +194,7 @@ export default function App() {
           <TrainerProfileSettings
             trainer={trainer}
             onUpdateTrainer={(updated) => setTrainer(updated)}
+            onLogout={handleLogout}
           />
         )}
 
