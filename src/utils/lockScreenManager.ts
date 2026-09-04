@@ -108,18 +108,39 @@ class LockScreenManager {
   }
 
   /**
-   * Request Notification permission from the student
+   * Request Notification permission from the student with mobile fallback & test notification
    */
   public async requestNotificationPermission(): Promise<NotificationPermission> {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
+    if (typeof window === 'undefined') {
       return 'denied';
     }
-    try {
-      const permission = await Notification.requestPermission();
-      return permission;
-    } catch {
-      return 'denied';
+
+    // Modern Promise-based API
+    if ('Notification' in window && typeof Notification.requestPermission === 'function') {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          this.notifyRestCompleted('Treino TrainerPro Conectado', 'Notificações na Tela de Bloqueio ativadas com sucesso!');
+        }
+        return permission;
+      } catch {
+        // Fallback for older browsers using callback pattern
+        try {
+          return await new Promise<NotificationPermission>((resolve) => {
+            Notification.requestPermission((result) => {
+              if (result === 'granted') {
+                this.notifyRestCompleted('Treino TrainerPro Conectado', 'Notificações na Tela de Bloqueio ativadas com sucesso!');
+              }
+              resolve(result);
+            });
+          });
+        } catch {
+          return 'denied';
+        }
+      }
     }
+
+    return 'denied';
   }
 
   public getNotificationPermission(): NotificationPermission {

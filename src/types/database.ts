@@ -72,6 +72,8 @@ export interface Student {
   password?: string;
   password_set?: boolean;
   invite_token?: string;
+  invite_token_used?: boolean;
+  invite_created_at?: string;
 }
 
 export interface WorkoutExercise {

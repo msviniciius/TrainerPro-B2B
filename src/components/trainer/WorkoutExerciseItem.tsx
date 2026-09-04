@@ -57,41 +57,46 @@ export const WorkoutExerciseItem = memo<WorkoutExerciseItemProps>(({
   return (
     <div className="bg-[#171f33] rounded-2xl p-4 border border-[#3c4a42]/40 shadow-sm transition-all hover:border-[#4edea3]/40 flex flex-col gap-3 group">
       {/* Item Top Bar */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-14 h-14 rounded-xl bg-[#0b1326] overflow-hidden flex-shrink-0 border border-[#3c4a42]/40">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+        <div className="flex items-start sm:items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+          {/* Media Thumbnail */}
+          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#0b1326] overflow-hidden flex-shrink-0 border border-[#3c4a42]/40">
             {exercise && (
               <ExerciseMedia
                 exerciseId={exercise.id}
                 name={exercise.name}
                 showBadges={false}
+                aspectRatio="square"
                 className="w-full h-full"
               />
             )}
           </div>
-          <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-mono-metric text-xs text-[#4edea3] font-bold">
+
+          {/* Exercise Info & Meta */}
+          <div className="flex flex-col min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="font-mono-metric text-xs text-[#4edea3] font-bold shrink-0">
                 #{index + 1 < 10 ? `0${index + 1}` : index + 1}
               </span>
-              <h4 className="font-bold text-sm text-[#dae2fd] truncate">
+              <h4 className="font-bold text-sm text-[#dae2fd] truncate max-w-[180px] sm:max-w-[280px]">
                 {exercise?.name || 'Exercício'}
               </h4>
               {workoutExercise.intensity_tag && (
-                <span className="font-mono-metric text-[10px] px-2 py-0.5 rounded-full bg-[#3131c0]/40 text-[#c0c1ff] uppercase font-bold border border-[#c0c1ff]/20">
+                <span className="font-mono-metric text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full bg-[#3131c0]/40 text-[#c0c1ff] uppercase font-bold border border-[#c0c1ff]/20 whitespace-nowrap shrink-0">
                   {workoutExercise.intensity_tag}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="font-mono-metric text-[11px] px-2 py-0.2 rounded bg-[#222a3d] text-[#bbcabf]">
+
+            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+              <span className="font-mono-metric text-[10px] sm:text-[11px] px-2 py-0.5 rounded bg-[#222a3d] text-[#bbcabf] whitespace-nowrap">
                 {exercise?.target_muscle || 'Músculo Alvo'}
               </span>
-              <span className="font-mono-metric text-[11px] text-[#86948a]">
+              <span className="font-mono-metric text-[10px] sm:text-[11px] text-[#86948a] whitespace-nowrap">
                 {exercise?.equipment}
               </span>
               {workoutExercise.tempo && (
-                <span className="font-mono-metric text-[10px] text-[#ffb95f] bg-[#ffb95f]/10 px-1.5 py-0.2 rounded">
+                <span className="font-mono-metric text-[10px] text-[#ffb95f] bg-[#ffb95f]/10 px-1.5 py-0.5 rounded whitespace-nowrap">
                   Cadência: {workoutExercise.tempo}
                 </span>
               )}
@@ -100,7 +105,7 @@ export const WorkoutExerciseItem = memo<WorkoutExerciseItemProps>(({
         </div>
 
         {/* Ordering Controls & Actions */}
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center justify-end gap-1 shrink-0 pt-1 sm:pt-0 border-t border-[#3c4a42]/20 sm:border-t-0">
           {/* Biomechanical Substitute Button */}
           <button
             type="button"

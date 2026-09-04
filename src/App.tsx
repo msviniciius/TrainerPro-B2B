@@ -30,17 +30,26 @@ export default function App() {
 
     let finalStudents = loadedStudents;
     let finalPlans = loadedPlans;
+    let initialOnboarding: Student | null = null;
+    let initialInviteError: string | null = null;
 
-    if (inviteResult && inviteResult.isNew) {
-      finalStudents = [inviteResult.student, ...loadedStudents];
-      saveStoredStudents(finalStudents);
-      // New student starts awaiting trainer prescription - no fake/dummy plans!
+    if (inviteResult) {
+      if (inviteResult.type === 'valid') {
+        if (inviteResult.isNew) {
+          finalStudents = [inviteResult.student, ...loadedStudents];
+          saveStoredStudents(finalStudents);
+        }
+        initialOnboarding = inviteResult.student;
+      } else if (inviteResult.type === 'expired_or_used') {
+        initialInviteError = inviteResult.message;
+      }
     }
 
     return {
       students: finalStudents,
       plans: finalPlans,
-      onboardingStudent: inviteResult ? inviteResult.student : null
+      onboardingStudent: initialOnboarding,
+      inviteError: initialInviteError
     };
   }, []);
 
@@ -51,6 +60,7 @@ export default function App() {
   const [sessions, setSessions] = useState<WorkoutSession[]>(MOCK_SESSIONS);
 
   const [onboardingStudent, setOnboardingStudent] = useState<Student | null>(initialData.onboardingStudent);
+  const [inviteErrorMessage, setInviteErrorMessage] = useState<string | null>(initialData.inviteError);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!initialData.onboardingStudent);
   const [activeView, setActiveView] = useState<
     'trainer-students' | 'trainer-builder' | 'trainer-analytics' | 'trainer-profile' | 'student-pwa' | 'supabase-sql'
@@ -79,15 +89,21 @@ export default function App() {
     const handleCheckUrlInvite = () => {
       const result = parseStudentInviteFromUrl(students);
       if (result) {
-        if (result.isNew) {
-          const updatedStudents = [result.student, ...students];
-          setStudents(updatedStudents);
-          saveStoredStudents(updatedStudents);
-          // New student starts awaiting prescription - no fake/dummy plans
+        if (result.type === 'valid') {
+          if (result.isNew) {
+            const updatedStudents = [result.student, ...students];
+            setStudents(updatedStudents);
+            saveStoredStudents(updatedStudents);
+          }
+          setSelectedStudent(result.student);
+          setOnboardingStudent(result.student);
+          setInviteErrorMessage(null);
+          setIsAuthenticated(false);
+        } else if (result.type === 'expired_or_used') {
+          setInviteErrorMessage(result.message);
+          setOnboardingStudent(null);
+          setIsAuthenticated(false);
         }
-        setSelectedStudent(result.student);
-        setOnboardingStudent(result.student);
-        setIsAuthenticated(false);
       }
     };
 
@@ -274,6 +290,7 @@ export default function App() {
         onLoginTrainer={handleLoginTrainer}
         onLoginStudent={handleLoginStudent}
         onOpenInviteOnboarding={(st) => setOnboardingStudent(st)}
+        initialErrorMessage={inviteErrorMessage}
       />
     );
   }

@@ -22,6 +22,7 @@ interface LoginScreenProps {
   onLoginTrainer: (email: string) => void;
   onLoginStudent: (student: Student) => void;
   onOpenInviteOnboarding?: (student: Student) => void;
+  initialErrorMessage?: string | null;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
@@ -30,14 +31,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onLoginTrainer,
   onLoginStudent,
   onOpenInviteOnboarding,
+  initialErrorMessage,
 }) => {
-  const [role, setRole] = useState<'trainer' | 'student'>('trainer');
+  const [role, setRole] = useState<'trainer' | 'student'>(initialErrorMessage ? 'student' : 'trainer');
   const [email, setEmail] = useState(trainer.email || 'msvinicius.ads@gmail.com');
   const [password, setPassword] = useState('••••••••••••');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState(initialErrorMessage || '');
   const [selectedStudentId, setSelectedStudentId] = useState(students[0]?.id || '');
   const [studentIdentifier, setStudentIdentifier] = useState(students[0]?.email || '');
   const [studentPassword, setStudentPassword] = useState('');

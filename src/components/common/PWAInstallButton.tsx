@@ -31,13 +31,13 @@ export const PWAInstallButton: React.FC<{ compact?: boolean }> = ({ compact = fa
       ) : isIOS ? (
         <button
           onClick={() => setShowIOSGuide(true)}
-          className={`flex items-center gap-2 rounded-lg bg-[#222a3d] border border-[#3c4a42]/50 text-[#dae2fd] hover:bg-[#31394d] transition-all text-xs font-medium ${
-            compact ? 'px-2.5 py-1' : 'px-3 py-1.5'
+          className={`flex items-center gap-1.5 rounded-lg bg-[#222a3d] border border-[#3c4a42]/50 text-[#dae2fd] hover:bg-[#31394d] transition-all text-xs font-medium whitespace-nowrap shrink-0 ${
+            compact ? 'px-2 py-1' : 'px-3 py-1.5'
           }`}
           title="Instalar no iPhone / iPad"
         >
           <Smartphone className="w-3.5 h-3.5 text-[#4edea3]" />
-          <span>Instalar iOS</span>
+          <span>{compact ? 'Instalar' : 'Instalar iOS'}</span>
         </button>
       ) : (
         <button

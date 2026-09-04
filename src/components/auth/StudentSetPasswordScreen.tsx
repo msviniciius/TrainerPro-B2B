@@ -42,6 +42,13 @@ export const StudentSetPasswordScreen: React.FC<StudentSetPasswordScreenProps> =
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Keep email in sync if student changes
+  React.useEffect(() => {
+    if (student?.email) {
+      setEmail(student.email);
+    }
+  }, [student]);
+
   // Password strength calculation
   const getPasswordStrength = (pass: string) => {
     if (!pass) return { score: 0, label: 'Vazia', color: 'bg-[#3c4a42]' };
@@ -81,6 +88,7 @@ export const StudentSetPasswordScreen: React.FC<StudentSetPasswordScreenProps> =
       email: email.trim() || student.email,
       password: password,
       password_set: true,
+      invite_token_used: true,
       is_active: true,
     };
 

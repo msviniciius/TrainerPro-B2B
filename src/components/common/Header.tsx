@@ -77,8 +77,8 @@ export const Header: React.FC<HeaderProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar aluno, exercício, carga ou WhatsApp..."
-              className="w-full h-10 pl-10 pr-12 rounded-lg bg-[#0b1326] text-[#dae2fd] placeholder:text-[#86948a] border border-[#3c4a42]/50 focus:border-[#4edea3] focus:outline-none text-sm transition-all shadow-inner"
+              placeholder="Buscar aluno, treino..."
+              className="w-full h-10 pl-10 pr-4 sm:pr-12 rounded-lg bg-[#0b1326] text-[#dae2fd] placeholder:text-[#86948a] border border-[#3c4a42]/50 focus:border-[#4edea3] focus:outline-none text-xs sm:text-sm transition-all shadow-inner"
             />
             <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none hidden sm:block">
               <kbd className="font-mono-metric text-[10px] px-1.5 py-0.5 rounded bg-[#2d3449] border border-[#3c4a42]/50 text-[#bbcabf]">

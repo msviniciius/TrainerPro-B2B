@@ -88,6 +88,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [createdStudentLink, setCreatedStudentLink] = useState<{
     name: string;
     phone: string;
+    email: string;
     link: string;
     inviteUrl: string;
     studentId: string;
@@ -95,11 +96,21 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [copiedSuccessModalLink, setCopiedSuccessModalLink] = useState(false);
   const [copiedStudentId, setCopiedStudentId] = useState<string | null>(null);
 
-  const copyStudentInviteLink = (student: Student, e?: React.MouseEvent) => {
+  const copyStudentInviteLink = (student: Student, e?: React.MouseEvent, forceNew: boolean = false) => {
     if (e) e.stopPropagation();
-    const inviteUrl = generateStudentInviteUrl(student);
+    const { url, token } = generateStudentInviteUrl(student, forceNew);
+    
+    // If student didn't have this token or was used, update the student object in state
+    if (student.invite_token !== token || student.invite_token_used) {
+      onUpdateStudent(student.id, {
+        invite_token: token,
+        invite_token_used: false,
+        invite_created_at: new Date().toISOString()
+      });
+    }
+
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(inviteUrl);
+      navigator.clipboard.writeText(url);
       setCopiedStudentId(student.id);
       setTimeout(() => setCopiedStudentId(null), 2500);
     }
@@ -177,12 +188,15 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     if (!formData.full_name.trim()) return;
 
     const studentId = `student-${Date.now()}`;
+    const studentEmail = (formData.email && formData.email.trim())
+      ? formData.email.trim()
+      : `${formData.full_name.trim().toLowerCase().replace(/\s+/g, '.')}@aluno.com`;
 
     const newStudentData: Student = {
       id: studentId,
       trainer_id: 'trainer-001',
-      full_name: formData.full_name,
-      email: formData.email || `${formData.full_name.toLowerCase().replace(/\s+/g, '.')}@aluno.com`,
+      full_name: formData.full_name.trim(),
+      email: studentEmail,
       phone: formData.phone || '(11) 98765-4321',
       plan_tier: formData.plan_tier,
       plan_name: formData.plan_name,
@@ -197,13 +211,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       last_workout_date: 'Aguardando 1º Treino',
       last_workout_name: 'Ficha Inicial Prescrita',
       password_set: false,
-      invite_token: studentId,
+      invite_token_used: false,
       created_at: new Date().toISOString()
     };
 
-    onAddStudent(newStudentData);
+    const { url: inviteUrl, token } = generateStudentInviteUrl(newStudentData, true);
+    newStudentData.invite_token = token;
 
-    const inviteUrl = generateStudentInviteUrl(newStudentData);
+    onAddStudent(newStudentData);
 
     // Generate WhatsApp welcome link with direct web app onboarding link
     const cleanPhone = getCleanWhatsAppDigits(formData.phone);
@@ -213,6 +228,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setCreatedStudentLink({
       name: formData.full_name,
       phone: formData.phone,
+      email: studentEmail,
       link: waLink,
       inviteUrl: inviteUrl,
       studentId: studentId
@@ -1307,7 +1323,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         id: createdStudentLink.studentId,
                         trainer_id: 'trainer-001',
                         full_name: createdStudentLink.name,
-                        email: `${createdStudentLink.name.toLowerCase().replace(/\s+/g, '.')}@aluno.com`,
+                        email: createdStudentLink.email || `${createdStudentLink.name.toLowerCase().replace(/\s+/g, '.')}@aluno.com`,
                         phone: createdStudentLink.phone,
                         plan_tier: 'trimestral',
                         plan_name: 'Trimestral VIP',

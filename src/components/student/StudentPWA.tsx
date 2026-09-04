@@ -1218,19 +1218,25 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
                   Quando o descanso zerar, o celular vibra no seu bolso e dispara uma notificação avisando o início da próxima série.
                 </p>
                 {notificationPermission !== 'granted' ? (
-                  <button
-                    onClick={async () => {
-                      const perm = await lockScreenManager.requestNotificationPermission();
-                      setNotificationPermission(perm);
-                    }}
-                    className="mt-1.5 w-full py-2 rounded-xl bg-[#10b981] hover:bg-[#059669] text-[#003824] font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer"
-                  >
-                    Ativar Permissão de Notificação
-                  </button>
+                  <div className="space-y-1.5 pt-1">
+                    <button
+                      onClick={async () => {
+                        const perm = await lockScreenManager.requestNotificationPermission();
+                        setNotificationPermission(perm);
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#10b981] to-[#4edea3] hover:brightness-110 text-[#003824] font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Bell className="w-3.5 h-3.5" />
+                      <span>Solicitar Permissão de Notificação</span>
+                    </button>
+                    <p className="text-[10px] text-[#86948a] leading-tight">
+                      💡 <strong>No iPhone (iOS)</strong>: As notificações de Web Push exigem que o app esteja instalado na Tela Inicial (Menu Compartilhar &gt; Adicionar à Tela de Início). O <strong>Widget do Cronômetro na Tela de Bloqueio (Media Session)</strong> funciona automaticamente ao iniciar o treino!
+                    </p>
+                  </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 text-[#4edea3] text-[11px] font-semibold pt-0.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Notificações na Tela de Bloqueio autorizadas</span>
+                  <div className="flex items-center gap-1.5 text-[#4edea3] text-[11px] font-semibold pt-0.5 bg-[#10b981]/10 p-2 rounded-xl border border-[#10b981]/30">
+                    <CheckCircle2 className="w-4 h-4 text-[#10b981]" />
+                    <span>Notificações na Tela de Bloqueio ativadas!</span>
                   </div>
                 )}
               </div>
