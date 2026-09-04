@@ -1,34 +1,21 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Student, WorkoutPlan, WorkoutExercise, Exercise } from '../../types/database';
-import { EXERCISES_DATABASE } from '../../data/exercisesData';
-import { ExerciseMedia } from '../common/ExerciseMedia';
+import { ExerciseCatalog } from './ExerciseCatalog';
+import { WorkoutExerciseItem } from './WorkoutExerciseItem';
 import { ExerciseSubstitutionModal } from './ExerciseSubstitutionModal';
 import { WorkoutAuditModal } from './WorkoutAuditModal';
 import { AiCopilotAssistant } from './AiCopilotAssistant';
 import { 
   Dumbbell, 
-  Plus, 
   Trash2, 
-  ChevronUp, 
-  ChevronDown, 
   Copy, 
   Save, 
-  Check, 
-  RotateCcw, 
   ShieldAlert, 
-  Search, 
-  SlidersHorizontal, 
   Clock, 
-  Layers, 
   Flame, 
   CheckCircle2, 
-  X,
-  RefreshCw,
   Activity,
-  Bot,
-  Zap,
-  Sliders,
-  Maximize2
+  Bot
 } from 'lucide-react';
 
 interface WorkoutBuilderProps {
@@ -38,25 +25,6 @@ interface WorkoutBuilderProps {
   onViewStudentPWA?: () => void;
 }
 
-const INTENSITY_PRESETS = [
-  'Drop-Set 3x',
-  'Rest-Pause 20s',
-  'Isometria 2s',
-  'Excêntrica 4s',
-  'Cluster Set',
-  'Super-série (Bi-set)',
-  'Back-off Set (-20%)',
-  'Pico de Contração'
-];
-
-const TEMPO_PRESETS = [
-  '3-0-1-0 (Hipertrofia Padrão)',
-  '4-1-1-0 (Alta Tensão Excêntrica)',
-  '2-0-1-0 (Potência & Carga)',
-  '2-2-1-0 (Isometria no Ponto Zero)',
-  '3-1-1-1 (Contração de Pico)'
-];
-
 export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
   student,
   workoutPlans,
@@ -65,49 +33,24 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
 }) => {
   const [activeSplitDay, setActiveSplitDay] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('A');
   const [plans, setPlans] = useState<WorkoutPlan[]>(workoutPlans);
-  const [searchFilter, setSearchFilter] = useState('');
-  const [selectedMuscle, setSelectedMuscle] = useState<string>('all');
-  const [selectedEquipment, setSelectedEquipment] = useState<string>('all');
 
   // Modals & Drawers
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [substitutionTarget, setSubstitutionTarget] = useState<WorkoutExercise | null>(null);
-
   const [saveToast, setSaveToast] = useState(false);
-  const [justAddedId, setJustAddedId] = useState<string | null>(null);
 
   // Active workout plan for currently selected split day
   const currentPlan = plans.find(p => p.split_day === activeSplitDay) || plans[0];
 
-  // Exercises filtered in catalogue
-  const filteredCatalog = useMemo(() => {
-    return EXERCISES_DATABASE.filter(ex => {
-      if (selectedMuscle !== 'all') {
-        const matchBody = ex.body_part.toLowerCase() === selectedMuscle.toLowerCase();
-        const matchTarget = ex.target_muscle.toLowerCase().includes(selectedMuscle.toLowerCase());
-        const matchPernas = selectedMuscle === 'Quadríceps' && (ex.target_muscle.toLowerCase().includes('quad') || (ex.body_part === 'Pernas' && !ex.target_muscle.includes('Isquio') && !ex.target_muscle.includes('Glúteo')));
-        const matchIsquios = selectedMuscle === 'Isquiotibiais' && (ex.target_muscle.toLowerCase().includes('isquio') || ex.target_muscle.toLowerCase().includes('hamstring') || ex.target_muscle.toLowerCase().includes('femoral'));
-        const matchGluteos = selectedMuscle === 'Glúteos' && ex.target_muscle.toLowerCase().includes('glúteo');
-        const matchDorsal = selectedMuscle === 'Dorsal' && (ex.body_part === 'Dorsal' || ex.target_muscle.includes('Dorsal') || ex.target_muscle.includes('Trapézio'));
-        const matchBracos = selectedMuscle === 'Bíceps' ? ex.target_muscle.includes('Bíceps') : selectedMuscle === 'Tríceps' ? ex.target_muscle.includes('Tríceps') : false;
-
-        if (!matchBody && !matchTarget && !matchPernas && !matchIsquios && !matchGluteos && !matchDorsal && !matchBracos) {
-          return false;
-        }
-      }
-      if (selectedEquipment !== 'all' && !ex.equipment.toLowerCase().includes(selectedEquipment.toLowerCase())) return false;
-      if (searchFilter.trim()) {
-        const q = searchFilter.toLowerCase();
-        const matchName = ex.name.toLowerCase().includes(q);
-        const matchTarget = ex.target_muscle.toLowerCase().includes(q);
-        const matchBody = ex.body_part.toLowerCase().includes(q);
-        const matchEquip = ex.equipment.toLowerCase().includes(q);
-        if (!matchName && !matchTarget && !matchBody && !matchEquip) return false;
-      }
-      return true;
+  // In-plan counts mapping for the catalog
+  const inPlanCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    currentPlan?.exercises.forEach(we => {
+      counts[we.exercise_id] = (counts[we.exercise_id] || 0) + 1;
     });
-  }, [selectedMuscle, selectedEquipment, searchFilter]);
+    return counts;
+  }, [currentPlan?.exercises]);
 
   // Volume calculations per muscle group for current workout
   const muscleVolumeBreakdown = useMemo(() => {
@@ -118,13 +61,15 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
       map[muscle] = (map[muscle] || 0) + sets;
     });
     return map;
-  }, [currentPlan]);
+  }, [currentPlan?.exercises]);
 
   // Total sets in active session
-  const totalVolumeSets = currentPlan?.exercises.reduce((sum, ex) => sum + (Number(ex.target_sets) || 0), 0) || 0;
+  const totalVolumeSets = useMemo(() => {
+    return currentPlan?.exercises.reduce((sum, ex) => sum + (Number(ex.target_sets) || 0), 0) || 0;
+  }, [currentPlan?.exercises]);
 
   // Add exercise to current workout plan
-  const handleAddExerciseToPlan = (exercise: Exercise) => {
+  const handleAddExerciseToPlan = useCallback((exercise: Exercise) => {
     const newWorkoutExercise: WorkoutExercise = {
       id: `we-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       workout_plan_id: currentPlan.id,
@@ -139,7 +84,7 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
       tempo: '3-0-1-0'
     };
 
-    const updatedPlans = plans.map(p => {
+    setPlans(prevPlans => prevPlans.map(p => {
       if (p.id === currentPlan.id) {
         return {
           ...p,
@@ -147,16 +92,12 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
         };
       }
       return p;
-    });
-
-    setPlans(updatedPlans);
-    setJustAddedId(exercise.id);
-    setTimeout(() => setJustAddedId(null), 1200);
-  };
+    }));
+  }, [currentPlan.id, currentPlan.exercises.length]);
 
   // Remove exercise from current plan
-  const handleRemoveExercise = (exerciseId: string) => {
-    const updatedPlans = plans.map(p => {
+  const handleRemoveExercise = useCallback((exerciseId: string) => {
+    setPlans(prevPlans => prevPlans.map(p => {
       if (p.id === currentPlan.id) {
         return {
           ...p,
@@ -164,32 +105,28 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
         };
       }
       return p;
-    });
-    setPlans(updatedPlans);
-  };
+    }));
+  }, [currentPlan.id]);
 
   // Move exercise Up / Down
-  const handleMoveExercise = (index: number, direction: 'up' | 'down') => {
-    if (direction === 'up' && index === 0) return;
-    if (direction === 'down' && index === currentPlan.exercises.length - 1) return;
+  const handleMoveExercise = useCallback((index: number, direction: 'up' | 'down') => {
+    setPlans(prevPlans => prevPlans.map(p => {
+      if (p.id !== currentPlan.id) return p;
+      if (direction === 'up' && index === 0) return p;
+      if (direction === 'down' && index === p.exercises.length - 1) return p;
 
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
-    const reordered = [...currentPlan.exercises];
-    const [moved] = reordered.splice(index, 1);
-    reordered.splice(newIndex, 0, moved);
+      const newIndex = direction === 'up' ? index - 1 : index + 1;
+      const reordered = [...p.exercises];
+      const [moved] = reordered.splice(index, 1);
+      reordered.splice(newIndex, 0, moved);
 
-    const updatedPlans = plans.map(p => {
-      if (p.id === currentPlan.id) {
-        return { ...p, exercises: reordered };
-      }
-      return p;
-    });
-    setPlans(updatedPlans);
-  };
+      return { ...p, exercises: reordered };
+    }));
+  }, [currentPlan.id]);
 
   // Update inline parameters of an exercise
-  const handleUpdateExerciseParam = (exerciseId: string, updates: Partial<WorkoutExercise>) => {
-    const updatedPlans = plans.map(p => {
+  const handleUpdateExerciseParam = useCallback((exerciseId: string, updates: Partial<WorkoutExercise>) => {
+    setPlans(prevPlans => prevPlans.map(p => {
       if (p.id === currentPlan.id) {
         return {
           ...p,
@@ -197,70 +134,28 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
         };
       }
       return p;
-    });
-    setPlans(updatedPlans);
-  };
+    }));
+  }, [currentPlan.id]);
 
   // Duplicate an exercise
-  const handleDuplicateExercise = (exercise: WorkoutExercise) => {
+  const handleDuplicateExercise = useCallback((exercise: WorkoutExercise) => {
     const duplicated: WorkoutExercise = {
       ...exercise,
       id: `we-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       order_index: currentPlan.exercises.length + 1
     };
 
-    const updatedPlans = plans.map(p => {
+    setPlans(prevPlans => prevPlans.map(p => {
       if (p.id === currentPlan.id) {
         return { ...p, exercises: [...p.exercises, duplicated] };
       }
       return p;
-    });
-    setPlans(updatedPlans);
-  };
-
-  // Clear current day
-  const handleClearCurrentDay = () => {
-    if (window.confirm(`Tem certeza que deseja limpar todos os exercícios do Treino ${currentPlan.split_day}?`)) {
-      const updatedPlans = plans.map(p => {
-        if (p.id === currentPlan.id) {
-          return { ...p, exercises: [] };
-        }
-        return p;
-      });
-      setPlans(updatedPlans);
-    }
-  };
-
-  // Duplicate whole split day
-  const handleDuplicateSplitDay = () => {
-    const nextDays: ('A' | 'B' | 'C' | 'D' | 'E')[] = ['A', 'B', 'C', 'D', 'E'];
-    const currentIdx = nextDays.indexOf(activeSplitDay);
-    const targetDay = nextDays[(currentIdx + 1) % nextDays.length];
-
-    const updatedPlans = plans.map(p => {
-      if (p.split_day === targetDay) {
-        return {
-          ...p,
-          title: `Cópia do Treino ${activeSplitDay}`,
-          focus_muscle: currentPlan.focus_muscle,
-          exercises: currentPlan.exercises.map(e => ({
-            ...e,
-            id: `we-copy-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`
-          }))
-        };
-      }
-      return p;
-    });
-
-    setPlans(updatedPlans);
-    setActiveSplitDay(targetDay);
-    setSaveToast(true);
-    setTimeout(() => setSaveToast(false), 3000);
-  };
+    }));
+  }, [currentPlan.id, currentPlan.exercises.length]);
 
   // Handle Biomechanical Substitution Callback
-  const handleConfirmSubstitution = (workoutExerciseId: string, newExercise: Exercise, note: string) => {
-    const updatedPlans = plans.map(p => {
+  const handleConfirmSubstitution = useCallback((workoutExerciseId: string, newExercise: Exercise, note: string) => {
+    setPlans(prevPlans => prevPlans.map(p => {
       if (p.id === currentPlan.id) {
         return {
           ...p,
@@ -278,9 +173,50 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
         };
       }
       return p;
-    });
+    }));
 
-    setPlans(updatedPlans);
+    setSaveToast(true);
+    setTimeout(() => setSaveToast(false), 3000);
+  }, [currentPlan.id]);
+
+  const handleSubstitute = useCallback((exercise: WorkoutExercise) => {
+    setSubstitutionTarget(exercise);
+  }, []);
+
+  // Clear current day
+  const handleClearCurrentDay = () => {
+    if (window.confirm(`Tem certeza que deseja limpar todos os exercícios do Treino ${currentPlan.split_day}?`)) {
+      setPlans(prevPlans => prevPlans.map(p => {
+        if (p.id === currentPlan.id) {
+          return { ...p, exercises: [] };
+        }
+        return p;
+      }));
+    }
+  };
+
+  // Duplicate whole split day
+  const handleDuplicateSplitDay = () => {
+    const nextDays: ('A' | 'B' | 'C' | 'D' | 'E')[] = ['A', 'B', 'C', 'D', 'E'];
+    const currentIdx = nextDays.indexOf(activeSplitDay);
+    const targetDay = nextDays[(currentIdx + 1) % nextDays.length];
+
+    setPlans(prevPlans => prevPlans.map(p => {
+      if (p.split_day === targetDay) {
+        return {
+          ...p,
+          title: `Cópia do Treino ${activeSplitDay}`,
+          focus_muscle: currentPlan.focus_muscle,
+          exercises: currentPlan.exercises.map(e => ({
+            ...e,
+            id: `we-copy-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`
+          }))
+        };
+      }
+      return p;
+    }));
+
+    setActiveSplitDay(targetDay);
     setSaveToast(true);
     setTimeout(() => setSaveToast(false), 3000);
   };
@@ -338,7 +274,7 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
             {/* AI Biomechanical Audit */}
             <button
               onClick={() => setIsAuditModalOpen(true)}
-              className="flex items-center gap-2 h-10 px-3.5 rounded-xl bg-[#222a3d] text-[#ffb95f] hover:bg-[#31394d] transition-colors text-xs font-semibold border border-[#ffb95f]/30 active:scale-95"
+              className="flex items-center gap-2 h-10 px-3.5 rounded-xl bg-[#222a3d] text-[#ffb95f] hover:bg-[#31394d] transition-colors text-xs font-semibold border border-[#ffb95f]/30 active:scale-95 cursor-pointer"
               title="Auditoria biomecânica e segurança articular do treino"
             >
               <Activity className="w-4 h-4" />
@@ -348,7 +284,7 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
             {/* AI Copilot Chat Toggle */}
             <button
               onClick={() => setIsCopilotOpen(!isCopilotOpen)}
-              className={`flex items-center gap-2 h-10 px-3.5 rounded-xl transition-all text-xs font-semibold border ${
+              className={`flex items-center gap-2 h-10 px-3.5 rounded-xl transition-all text-xs font-semibold border cursor-pointer ${
                 isCopilotOpen
                   ? 'bg-[#10b981] text-[#003824] border-[#10b981]'
                   : 'bg-[#222a3d] text-[#dae2fd] hover:bg-[#31394d] border-[#3c4a42]/40'
@@ -361,7 +297,7 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
             {/* Save & Publish */}
             <button
               onClick={handleSaveAndPublish}
-              className="flex items-center gap-2 h-10 px-5 rounded-xl bg-[#10b981] text-[#003824] font-bold text-xs hover:bg-[#4edea3] transition-all shadow-lg shadow-[#10b981]/20 active:scale-95"
+              className="flex items-center gap-2 h-10 px-5 rounded-xl bg-[#10b981] text-[#003824] font-bold text-xs hover:bg-[#4edea3] transition-all shadow-lg shadow-[#10b981]/20 active:scale-95 cursor-pointer"
             >
               <Save className="w-4 h-4" />
               <span>Salvar Ficha</span>
@@ -380,141 +316,12 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
 
       {/* 2. Workspace 2-Column Studio Layout */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-        {/* LEFT PANEL: Exercise Catalogue Search & Insertion (5 cols) */}
-        <aside className="xl:col-span-5 bg-[#171f33] rounded-2xl p-4 sm:p-5 border border-[#3c4a42]/40 shadow-xl space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Dumbbell className="w-5 h-5 text-[#4edea3]" />
-              <h2 className="text-base font-bold text-[#dae2fd]">Catálogo Técnico de Exercícios</h2>
-            </div>
-            <span className="font-mono-metric text-xs text-[#86948a] font-semibold">
-              {EXERCISES_DATABASE.length} catalogados
-            </span>
-          </div>
-
-          {/* Search Input */}
-          <div className="relative">
-            <Search className="w-4 h-4 text-[#86948a] absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Buscar por nome, músculo ou equipamento..."
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full h-10 pl-10 pr-4 rounded-xl bg-[#0b1326] text-[#dae2fd] placeholder:text-[#86948a] text-xs border border-[#3c4a42]/60 focus:border-[#4edea3] focus:outline-none transition-all shadow-inner"
-            />
-          </div>
-
-          {/* Muscle Group Chips Filter */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-            {[
-              { id: 'all', label: 'Todos' },
-              { id: 'Peitoral', label: 'Peitoral' },
-              { id: 'Dorsal', label: 'Dorsal' },
-              { id: 'Quadríceps', label: 'Quadríceps' },
-              { id: 'Isquiotibiais', label: 'Isquiotibiais' },
-              { id: 'Glúteos', label: 'Glúteos' },
-              { id: 'Deltoides', label: 'Deltoides' },
-              { id: 'Tríceps', label: 'Tríceps' },
-              { id: 'Bíceps', label: 'Bíceps' },
-              { id: 'Abdômen', label: 'Abdômen' },
-            ].map(muscle => (
-              <button
-                key={muscle.id}
-                onClick={() => setSelectedMuscle(muscle.id)}
-                className={`px-3 py-1.5 rounded-lg font-medium whitespace-nowrap transition-all ${
-                  selectedMuscle === muscle.id
-                    ? 'bg-[#10b981] text-[#003824] font-bold shadow-sm'
-                    : 'bg-[#0b1326] text-[#bbcabf] hover:bg-[#222a3d] hover:text-[#dae2fd]'
-                }`}
-              >
-                {muscle.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Equipment Dropdown Filter */}
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="w-4 h-4 text-[#86948a] flex-shrink-0" />
-            <label className="text-xs text-[#bbcabf] font-semibold">Equipamento:</label>
-            <select
-              value={selectedEquipment}
-              onChange={(e) => setSelectedEquipment(e.target.value)}
-              className="flex-1 h-9 px-3 rounded-lg bg-[#0b1326] text-[#dae2fd] text-xs border border-[#3c4a42]/60 focus:border-[#4edea3] focus:outline-none cursor-pointer"
-            >
-              <option value="all">Todos Equipamentos</option>
-              <option value="Halteres">Halteres (Dumbbells)</option>
-              <option value="Barra">Barra Livre (Barbell)</option>
-              <option value="Polia">Polia / Cabo (Cable Machine)</option>
-              <option value="Máquina">Máquinas Articuladas</option>
-              <option value="Peso Corporal">Peso Corporal (Calistenia)</option>
-              <option value="Elástico">Elásticos / Bands</option>
-            </select>
-          </div>
-
-          {/* Exercise Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto max-h-[720px] pr-1">
-            {filteredCatalog.map(exercise => {
-              const inPlanCount = currentPlan?.exercises.filter(e => e.exercise_id === exercise.id).length || 0;
-              const isJustAdded = justAddedId === exercise.id;
-
-              return (
-                <div
-                  key={exercise.id}
-                  className="flex flex-col bg-[#222a3d] hover:bg-[#283248] rounded-xl overflow-hidden border border-[#3c4a42]/40 shadow-sm transition-all group"
-                >
-                  <div className="relative w-full h-[130px] bg-[#0b1326] overflow-hidden">
-                    <ExerciseMedia
-                      exerciseId={exercise.id}
-                      name={exercise.name}
-                      targetMuscle={exercise.target_muscle}
-                      equipment={exercise.equipment}
-                      className="w-full h-full"
-                    />
-                  </div>
-
-                  <div className="p-3 flex flex-col justify-between flex-1 gap-2">
-                    <div>
-                      <h3 className="font-bold text-xs text-[#dae2fd] line-clamp-1 group-hover:text-[#4edea3] transition-colors" title={exercise.name}>
-                        {exercise.name}
-                      </h3>
-                      <p className="text-[11px] text-[#bbcabf] line-clamp-2 mt-1 leading-relaxed">
-                        {exercise.instructions_pt}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleAddExerciseToPlan(exercise)}
-                      className={`w-full mt-2 h-9 px-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm whitespace-nowrap cursor-pointer select-none ${
-                        isJustAdded
-                          ? 'bg-[#4edea3] text-[#003824] shadow-md shadow-[#4edea3]/30 scale-[1.01]'
-                          : 'bg-[#10b981] hover:bg-[#4edea3] text-[#003824] shadow-md shadow-[#10b981]/20'
-                      }`}
-                      title={`Adicionar ${exercise.name} ao Treino ${activeSplitDay}`}
-                    >
-                      {isJustAdded ? (
-                        <>
-                          <Check className="w-4 h-4 stroke-[3]" />
-                          <span className="whitespace-nowrap">Adicionado!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-3.5 h-3.5 stroke-[2.5] flex-shrink-0" />
-                          <span className="whitespace-nowrap tracking-tight">Adicionar ao Treino {activeSplitDay}</span>
-                          {inPlanCount > 0 && (
-                            <span className="ml-0.5 font-mono-metric text-[10px] bg-[#003824]/20 text-[#003824] px-1.5 py-0.2 rounded-full font-extrabold">
-                              {inPlanCount}x
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </aside>
+        {/* LEFT PANEL: Exercise Catalogue (Optimized & Paginated) */}
+        <ExerciseCatalog
+          activeSplitDay={activeSplitDay}
+          inPlanCounts={inPlanCounts}
+          onAddExercise={handleAddExerciseToPlan}
+        />
 
         {/* RIGHT PANEL: Workout Split Structure & Parameters (7 cols) */}
         <section className="xl:col-span-7 flex flex-col gap-4">
@@ -528,7 +335,7 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
                   <button
                     key={day}
                     onClick={() => setActiveSplitDay(day)}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-xs transition-all whitespace-nowrap ${
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-xs transition-all whitespace-nowrap cursor-pointer ${
                       isActive
                         ? 'bg-[#10b981] text-[#003824] shadow-md'
                         : 'text-[#bbcabf] hover:bg-[#222a3d] hover:text-[#dae2fd]'
@@ -550,7 +357,7 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
             <div className="flex items-center gap-1.5 self-end sm:self-auto">
               <button
                 onClick={handleDuplicateSplitDay}
-                className="p-2 rounded-lg text-[#bbcabf] hover:text-[#dae2fd] hover:bg-[#222a3d] transition-colors text-xs flex items-center gap-1"
+                className="p-2 rounded-lg text-[#bbcabf] hover:text-[#dae2fd] hover:bg-[#222a3d] transition-colors text-xs flex items-center gap-1 cursor-pointer"
                 title="Copiar estrutura deste treino para o próximo dia"
               >
                 <Copy className="w-3.5 h-3.5" />
@@ -558,7 +365,7 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
               </button>
               <button
                 onClick={handleClearCurrentDay}
-                className="p-2 rounded-lg text-[#ffb4ab] hover:bg-[#93000a]/20 transition-colors text-xs flex items-center gap-1"
+                className="p-2 rounded-lg text-[#ffb4ab] hover:bg-[#93000a]/20 transition-colors text-xs flex items-center gap-1 cursor-pointer"
                 title="Limpar exercícios deste dia"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -630,175 +437,20 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
                 </p>
               </div>
             ) : (
-              currentPlan?.exercises.map((workoutExercise, index) => {
-                const exercise = workoutExercise.exercise || EXERCISES_DATABASE.find(e => e.id === workoutExercise.exercise_id);
-
-                return (
-                  <div
-                    key={workoutExercise.id}
-                    className="bg-[#171f33] rounded-2xl p-4 border border-[#3c4a42]/40 shadow-sm transition-all hover:border-[#4edea3]/40 flex flex-col gap-3 group"
-                  >
-                    {/* Item Top Bar */}
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-14 h-14 rounded-xl bg-[#0b1326] overflow-hidden flex-shrink-0 border border-[#3c4a42]/40">
-                          {exercise && (
-                            <ExerciseMedia
-                              exerciseId={exercise.id}
-                              name={exercise.name}
-                              showBadges={false}
-                              className="w-full h-full"
-                            />
-                          )}
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono-metric text-xs text-[#4edea3] font-bold">
-                              #{index + 1 < 10 ? `0${index + 1}` : index + 1}
-                            </span>
-                            <h4 className="font-bold text-sm text-[#dae2fd] truncate">
-                              {exercise?.name || 'Exercício'}
-                            </h4>
-                            {workoutExercise.intensity_tag && (
-                              <span className="font-mono-metric text-[10px] px-2 py-0.5 rounded-full bg-[#3131c0]/40 text-[#c0c1ff] uppercase font-bold border border-[#c0c1ff]/20">
-                                {workoutExercise.intensity_tag}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="font-mono-metric text-[11px] px-2 py-0.2 rounded bg-[#222a3d] text-[#bbcabf]">
-                              {exercise?.target_muscle || 'Músculo Alvo'}
-                            </span>
-                            <span className="font-mono-metric text-[11px] text-[#86948a]">
-                              {exercise?.equipment}
-                            </span>
-                            {workoutExercise.tempo && (
-                              <span className="font-mono-metric text-[10px] text-[#ffb95f] bg-[#ffb95f]/10 px-1.5 py-0.2 rounded">
-                                Cadência: {workoutExercise.tempo}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Ordering Controls & Actions */}
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        {/* Biomechanical Substitute Button */}
-                        <button
-                          onClick={() => setSubstitutionTarget(workoutExercise)}
-                          className="p-1.5 rounded-lg text-[#4edea3] hover:bg-[#10b981]/20 transition-colors"
-                          title="Substituir por equivalente biomecânico (IA)"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleMoveExercise(index, 'up')}
-                          disabled={index === 0}
-                          className="p-1.5 rounded-lg text-[#86948a] hover:text-[#dae2fd] hover:bg-[#222a3d] disabled:opacity-30 transition-colors"
-                          title="Mover para cima"
-                        >
-                          <ChevronUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleMoveExercise(index, 'down')}
-                          disabled={index === currentPlan.exercises.length - 1}
-                          className="p-1.5 rounded-lg text-[#86948a] hover:text-[#dae2fd] hover:bg-[#222a3d] disabled:opacity-30 transition-colors"
-                          title="Mover para baixo"
-                        >
-                          <ChevronDown className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDuplicateExercise(workoutExercise)}
-                          className="p-1.5 rounded-lg text-[#86948a] hover:text-[#dae2fd] hover:bg-[#222a3d] transition-colors"
-                          title="Duplicar exercício"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleRemoveExercise(workoutExercise.id)}
-                          className="p-1.5 rounded-lg text-[#ffb4ab] hover:bg-[#93000a]/30 transition-colors"
-                          title="Remover exercício"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Inline Parameters Grid (Séries, Reps, Carga, Descanso) */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-[#131b2e] p-2.5 rounded-xl border border-[#3c4a42]/30">
-                      <div className="flex flex-col gap-1">
-                        <label className="font-mono-metric text-[10px] uppercase text-[#86948a] font-semibold">Séries</label>
-                        <input
-                          type="number"
-                          value={workoutExercise.target_sets}
-                          onChange={(e) => handleUpdateExerciseParam(workoutExercise.id, { target_sets: Number(e.target.value) })}
-                          className="h-9 px-3 rounded-lg bg-[#0b1326] text-center font-mono-metric font-bold text-sm text-[#dae2fd] border border-[#3c4a42]/50 focus:border-[#4edea3] focus:outline-none"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="font-mono-metric text-[10px] uppercase text-[#86948a] font-semibold">Repetições</label>
-                        <input
-                          type="text"
-                          value={workoutExercise.target_reps}
-                          onChange={(e) => handleUpdateExerciseParam(workoutExercise.id, { target_reps: e.target.value })}
-                          className="h-9 px-3 rounded-lg bg-[#0b1326] text-center font-mono-metric font-bold text-sm text-[#4edea3] border border-[#3c4a42]/50 focus:border-[#4edea3] focus:outline-none"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="font-mono-metric text-[10px] uppercase text-[#86948a] font-semibold">Carga Alvo (kg)</label>
-                        <input
-                          type="number"
-                          value={workoutExercise.target_weight_kg}
-                          onChange={(e) => handleUpdateExerciseParam(workoutExercise.id, { target_weight_kg: Number(e.target.value) })}
-                          className="h-9 px-3 rounded-lg bg-[#0b1326] text-center font-mono-metric font-bold text-sm text-[#dae2fd] border border-[#3c4a42]/50 focus:border-[#4edea3] focus:outline-none"
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="font-mono-metric text-[10px] uppercase text-[#86948a] font-semibold">Descanso (s)</label>
-                        <input
-                          type="number"
-                          value={workoutExercise.rest_seconds}
-                          onChange={(e) => handleUpdateExerciseParam(workoutExercise.id, { rest_seconds: Number(e.target.value) })}
-                          className="h-9 px-3 rounded-lg bg-[#0b1326] text-center font-mono-metric font-bold text-sm text-[#ffb95f] border border-[#3c4a42]/50 focus:border-[#4edea3] focus:outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Techniques & Cadência Selector Bar */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 bg-[#0b1326] p-2.5 rounded-xl border border-[#3c4a42]/30">
-                      <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                        <span className="font-mono-metric text-[10px] uppercase text-[#86948a] font-semibold">Técnica:</span>
-                        <select
-                          value={workoutExercise.intensity_tag || ''}
-                          onChange={(e) => handleUpdateExerciseParam(workoutExercise.id, { intensity_tag: e.target.value || undefined })}
-                          className="h-7 px-2 rounded-lg bg-[#171f33] text-xs text-[#c0c1ff] border border-[#3c4a42]/50 focus:border-[#4edea3] focus:outline-none cursor-pointer"
-                        >
-                          <option value="">Nenhuma (Série Normal)</option>
-                          {INTENSITY_PRESETS.map(tech => (
-                            <option key={tech} value={tech}>{tech}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                        <span className="font-mono-metric text-[10px] uppercase text-[#86948a] font-semibold">Cadência:</span>
-                        <select
-                          value={workoutExercise.tempo || '3-0-1-0'}
-                          onChange={(e) => handleUpdateExerciseParam(workoutExercise.id, { tempo: e.target.value })}
-                          className="h-7 px-2 rounded-lg bg-[#171f33] text-xs text-[#ffb95f] border border-[#3c4a42]/50 focus:border-[#4edea3] focus:outline-none cursor-pointer"
-                        >
-                          {TEMPO_PRESETS.map(t => (
-                            <option key={t} value={t.split(' ')[0]}>{t}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+              currentPlan?.exercises.map((workoutExercise, index) => (
+                <WorkoutExerciseItem
+                  key={workoutExercise.id}
+                  workoutExercise={workoutExercise}
+                  index={index}
+                  isFirst={index === 0}
+                  isLast={index === currentPlan.exercises.length - 1}
+                  onUpdateParam={handleUpdateExerciseParam}
+                  onMove={handleMoveExercise}
+                  onDuplicate={handleDuplicateExercise}
+                  onRemove={handleRemoveExercise}
+                  onSubstitute={handleSubstitute}
+                />
+              ))
             )}
           </div>
         </section>

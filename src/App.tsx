@@ -1,6 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Student, WorkoutPlan, ExerciseLog, WorkoutSession, PersonalTrainer } from './types/database';
 import { INITIAL_STUDENTS, INITIAL_WORKOUT_PLANS, MOCK_EXERCISE_LOGS, MOCK_SESSIONS, CURRENT_TRAINER } from './data/mockData';
+import { 
+  getStoredStudents, 
+  saveStoredStudents, 
+  getStoredWorkoutPlans, 
+  saveStoredWorkoutPlans, 
+  createDefaultPlansForStudent 
+} from './utils/storage';
 import { Header } from './components/common/Header';
 import { Sidebar } from './components/common/Sidebar';
 import { StudentManagement } from './components/trainer/StudentManagement';
@@ -10,7 +17,8 @@ import { TrainerProfileSettings } from './components/trainer/TrainerProfileSetti
 import { StudentPWA } from './components/student/StudentPWA';
 import { SqlViewer } from './components/sql/SqlViewer';
 import { LoginScreen } from './components/auth/LoginScreen';
-import { Users, SplitSquareVertical, BarChart3, Smartphone, Database } from 'lucide-react';
+import { StudentSetPasswordScreen } from './components/auth/StudentSetPasswordScreen';
+import { Users, SplitSquareVertical, BarChart3, Smartphone, Database, CheckCircle2, X } from 'lucide-react';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(true);
@@ -19,19 +27,56 @@ export default function App() {
   >('trainer-students');
 
   const [trainer, setTrainer] = useState<PersonalTrainer>(CURRENT_TRAINER);
-  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
-  const [selectedStudent, setSelectedStudent] = useState<Student>(INITIAL_STUDENTS[0]);
-  const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>(INITIAL_WORKOUT_PLANS);
+  const [students, setStudents] = useState<Student[]>(() => getStoredStudents());
+  const [selectedStudent, setSelectedStudent] = useState<Student>(() => students[0] || INITIAL_STUDENTS[0]);
+  const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>(() => getStoredWorkoutPlans());
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>(MOCK_EXERCISE_LOGS);
   const [sessions, setSessions] = useState<WorkoutSession[]>(MOCK_SESSIONS);
+
+  const [onboardingStudent, setOnboardingStudent] = useState<Student | null>(null);
+  const [onboardingSuccessToast, setOnboardingSuccessToast] = useState<string | null>(null);
 
   const [isNewStudentModalOpen, setIsNewStudentModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Add new student
+  // Persist students to localStorage whenever updated
+  useEffect(() => {
+    saveStoredStudents(students);
+  }, [students]);
+
+  // Persist workout plans to localStorage whenever updated
+  useEffect(() => {
+    saveStoredWorkoutPlans(workoutPlans);
+  }, [workoutPlans]);
+
+  // Check URL query parameters for student invite/onboarding link
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const inviteParam = params.get('convite') || params.get('invite') || params.get('token') || params.get('aluno');
+
+    if (inviteParam) {
+      const cleanParam = decodeURIComponent(inviteParam).trim().toLowerCase();
+      const cleanDigits = cleanParam.replace(/\D/g, '');
+
+      const matched = students.find(s => 
+        s.id.toLowerCase() === cleanParam ||
+        (s.invite_token && s.invite_token.toLowerCase() === cleanParam) ||
+        (s.email && s.email.toLowerCase() === cleanParam) ||
+        (s.full_name && s.full_name.toLowerCase() === cleanParam) ||
+        (cleanDigits.length >= 8 && s.phone && s.phone.replace(/\D/g, '').includes(cleanDigits))
+      );
+
+      if (matched) {
+        setOnboardingStudent(matched);
+      }
+    }
+  }, [students]);
+
+  // Add new student and create their personalized workout plan
   const handleAddStudent = (newStudentData: Partial<Student>) => {
+    const studentId = newStudentData.id || `student-${Date.now()}`;
     const newStudent: Student = {
-      id: `student-${Date.now()}`,
+      id: studentId,
       trainer_id: 'trainer-001',
       full_name: newStudentData.full_name || 'Novo Aluno',
       email: newStudentData.email || 'aluno@email.com',
@@ -48,11 +93,43 @@ export default function App() {
       auto_lock: newStudentData.auto_lock ?? true,
       last_workout_date: 'Aguardando 1º Treino',
       last_workout_name: 'Ficha Prescrita',
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      invite_token: studentId,
+      password_set: false
     };
+
+    // Generate initial workout plan for the student so they have a complete workout sheet immediately
+    const initialPlans = createDefaultPlansForStudent(newStudent);
+    setWorkoutPlans(prev => [...initialPlans, ...prev]);
 
     setStudents(prev => [newStudent, ...prev]);
     setSelectedStudent(newStudent);
+  };
+
+  // Complete onboarding from link (Sets password & logs in to view workout sheet)
+  const handleCompleteOnboarding = (updatedStudent: Student) => {
+    setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
+    setSelectedStudent(updatedStudent);
+    setOnboardingStudent(null);
+    setIsAuthenticated(true);
+    setActiveView('student-pwa');
+
+    // Clean URL query parameters smoothly
+    try {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch (e) {}
+
+    setOnboardingSuccessToast(`🎉 Senha cadastrada com sucesso! Bem-vindo(a) à sua ficha de treino, ${updatedStudent.full_name}!`);
+    setTimeout(() => setOnboardingSuccessToast(null), 6000);
+  };
+
+  // Cancel or switch from onboarding to login
+  const handleCancelOnboarding = () => {
+    setOnboardingStudent(null);
+    setIsAuthenticated(false);
+    try {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch (e) {}
   };
 
   // Update student
@@ -124,7 +201,19 @@ export default function App() {
     setActiveView('student-pwa');
   };
 
-  // If not authenticated, render Login Screen
+  // 1. If arriving through student invite link, show password creation screen
+  if (onboardingStudent) {
+    return (
+      <StudentSetPasswordScreen
+        student={onboardingStudent}
+        trainer={trainer}
+        onComplete={handleCompleteOnboarding}
+        onCancelOrLogin={handleCancelOnboarding}
+      />
+    );
+  }
+
+  // 2. If not authenticated, render Login Screen
   if (!isAuthenticated) {
     return (
       <LoginScreen
@@ -132,22 +221,38 @@ export default function App() {
         students={students}
         onLoginTrainer={handleLoginTrainer}
         onLoginStudent={handleLoginStudent}
+        onOpenInviteOnboarding={(st) => setOnboardingStudent(st)}
       />
     );
   }
 
-  // If in PWA student mode, show full-screen mobile app layout
+  // Effective workout plans for selected student
+  const studentPlans = workoutPlans.filter(p => p.student_id === selectedStudent.id);
+  const effectiveWorkoutPlans = studentPlans.length > 0 ? studentPlans : workoutPlans;
+
+  // 3. If in PWA student mode, show full-screen mobile app layout
   if (activeView === 'student-pwa') {
     return (
-      <StudentPWA
-        student={selectedStudent}
-        workoutPlans={workoutPlans}
-        onLogExerciseSet={handleLogExerciseSet}
-        onExitPWA={() => setActiveView('trainer-students')}
-        onLogout={handleLogout}
-        onUpdateStudent={handleUpdateStudent}
-        trainer={trainer}
-      />
+      <div className="relative min-h-screen">
+        {onboardingSuccessToast && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#10b981] text-[#003824] px-5 py-3 rounded-2xl shadow-2xl font-bold text-xs sm:text-sm flex items-center gap-2.5 animate-in fade-in slide-in-from-top-4 border border-[#4edea3]/40">
+            <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+            <span>{onboardingSuccessToast}</span>
+            <button onClick={() => setOnboardingSuccessToast(null)} className="ml-2 hover:opacity-75 cursor-pointer">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        <StudentPWA
+          student={selectedStudent}
+          workoutPlans={effectiveWorkoutPlans}
+          onLogExerciseSet={handleLogExerciseSet}
+          onExitPWA={() => setActiveView('trainer-students')}
+          onLogout={handleLogout}
+          onUpdateStudent={handleUpdateStudent}
+          trainer={trainer}
+        />
+      </div>
     );
   }
 

@@ -69,6 +69,9 @@ export interface Student {
   last_workout_date?: string;
   last_workout_name?: string;
   created_at: string;
+  password?: string;
+  password_set?: boolean;
+  invite_token?: string;
 }
 
 export interface WorkoutExercise {

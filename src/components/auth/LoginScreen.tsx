@@ -21,6 +21,7 @@ interface LoginScreenProps {
   students: Student[];
   onLoginTrainer: (email: string) => void;
   onLoginStudent: (student: Student) => void;
+  onOpenInviteOnboarding?: (student: Student) => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
@@ -28,6 +29,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   students,
   onLoginTrainer,
   onLoginStudent,
+  onOpenInviteOnboarding,
 }) => {
   const [role, setRole] = useState<'trainer' | 'student'>('trainer');
   const [email, setEmail] = useState(trainer.email || 'msvinicius.ads@gmail.com');
@@ -37,7 +39,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState(students[0]?.id || '');
+  const [studentIdentifier, setStudentIdentifier] = useState(students[0]?.email || '');
+  const [studentPassword, setStudentPassword] = useState('');
+  const [showStudentPassword, setShowStudentPassword] = useState(false);
   const [forgotPasswordNotice, setForgotPasswordNotice] = useState(false);
+  const [useQuickSelect, setUseQuickSelect] = useState(false);
 
   const handleSubmitTrainer = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,11 +62,53 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
   const handleStudentLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const targetStudent = students.find(s => s.id === selectedStudentId) || students[0];
-    if (!targetStudent) {
-      setErrorMessage('Nenhum aluno selecionado.');
+    setErrorMessage('');
+
+    if (useQuickSelect) {
+      const targetStudent = students.find(s => s.id === selectedStudentId) || students[0];
+      if (!targetStudent) {
+        setErrorMessage('Nenhum aluno selecionado.');
+        return;
+      }
+      setIsLoading(true);
+      setTimeout(() => {
+        setIsLoading(false);
+        onLoginStudent(targetStudent);
+      }, 500);
       return;
     }
+
+    // Normal email/phone + password authentication
+    const cleanQuery = studentIdentifier.trim().toLowerCase();
+    const cleanDigits = studentIdentifier.replace(/\D/g, '');
+
+    const targetStudent = students.find(s => {
+      if (s.email && s.email.toLowerCase() === cleanQuery) return true;
+      if (s.phone && cleanDigits.length >= 8 && s.phone.replace(/\D/g, '').includes(cleanDigits)) return true;
+      if (s.full_name && s.full_name.toLowerCase() === cleanQuery) return true;
+      return false;
+    });
+
+    if (!targetStudent) {
+      setErrorMessage('Aluno não encontrado. Verifique seu e-mail ou utilize o link de convite enviado pelo seu treinador.');
+      return;
+    }
+
+    // If student hasn't set a password yet
+    if (!targetStudent.password_set && !targetStudent.password) {
+      if (onOpenInviteOnboarding) {
+        onOpenInviteOnboarding(targetStudent);
+        return;
+      }
+    }
+
+    // Check password (accepts their set password or default 'aluno123' if not yet customized)
+    const validPassword = targetStudent.password || 'aluno123';
+    if (studentPassword && studentPassword !== validPassword) {
+      setErrorMessage('Senha incorreta para este aluno. Tente novamente ou acesse o link de convite.');
+      return;
+    }
+
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
@@ -252,28 +300,107 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           ) : (
             <form onSubmit={handleStudentLogin} className="space-y-4">
               <div className="space-y-1">
-                <span className="text-xs font-semibold text-[#dae2fd]">Acesso do Aluno</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[#dae2fd]">Acesso do Aluno</span>
+                  <button
+                    type="button"
+                    onClick={() => setUseQuickSelect(!useQuickSelect)}
+                    className="text-[11px] text-[#c0c1ff] hover:underline cursor-pointer"
+                  >
+                    {useQuickSelect ? 'Login Normal (Email/Senha)' : 'Modo Demonstração'}
+                  </button>
+                </div>
                 <p className="text-[11px] text-[#bbcabf]">
-                  Selecione o seu perfil para abrir a experiência PWA com timer e cargas.
+                  {useQuickSelect 
+                    ? 'Selecione qualquer aluno da lista para simular o acesso instantaneamente.'
+                    : 'Entre com seu e-mail cadastrado e sua senha para ver sua ficha de treino.'}
                 </p>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-[#bbcabf] block">
-                  Selecione o Aluno
-                </label>
-                <select
-                  value={selectedStudentId}
-                  onChange={(e) => setSelectedStudentId(e.target.value)}
-                  className="w-full h-11 px-3 rounded-xl bg-[#0b1326] text-[#dae2fd] text-xs sm:text-sm border border-[#3c4a42]/60 focus:border-[#c0c1ff] focus:outline-none"
-                >
-                  {students.map(st => (
-                    <option key={st.id} value={st.id}>
-                      {st.full_name} • {st.plan_name} ({st.goal})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {errorMessage && (
+                <div className="p-3 rounded-xl bg-[#93000a]/20 border border-[#ffb4ab]/30 flex items-center gap-2 text-xs text-[#ffb4ab] animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
+              {useQuickSelect ? (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-[#bbcabf] block">
+                    Selecione o Aluno (Demonstração)
+                  </label>
+                  <select
+                    value={selectedStudentId}
+                    onChange={(e) => setSelectedStudentId(e.target.value)}
+                    className="w-full h-11 px-3 rounded-xl bg-[#0b1326] text-[#dae2fd] text-xs sm:text-sm border border-[#3c4a42]/60 focus:border-[#c0c1ff] focus:outline-none cursor-pointer"
+                  >
+                    {students.map(st => (
+                      <option key={st.id} value={st.id}>
+                        {st.full_name} • {st.plan_name} ({st.goal})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <>
+                  {/* Student Email / Identifier */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-[#bbcabf] block">
+                      E-mail ou Telefone do Aluno
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-[#86948a] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={studentIdentifier}
+                        onChange={(e) => setStudentIdentifier(e.target.value)}
+                        placeholder="Ex: aluno@email.com ou (11) 98765-4321"
+                        required
+                        className="w-full h-11 pl-10 pr-4 rounded-xl bg-[#0b1326] text-[#dae2fd] text-xs sm:text-sm border border-[#3c4a42]/60 focus:border-[#c0c1ff] focus:outline-none transition-all shadow-inner"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Student Password */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium text-[#bbcabf]">
+                        Sua Senha
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cleanQuery = studentIdentifier.trim().toLowerCase();
+                          const found = students.find(s => s.email.toLowerCase() === cleanQuery || s.full_name.toLowerCase() === cleanQuery) || students[0];
+                          if (onOpenInviteOnboarding && found) {
+                            onOpenInviteOnboarding(found);
+                          }
+                        }}
+                        className="text-[11px] text-[#4edea3] hover:underline cursor-pointer"
+                      >
+                        Primeiro acesso? Criar senha
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-[#86948a] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type={showStudentPassword ? 'text' : 'password'}
+                        value={studentPassword}
+                        onChange={(e) => setStudentPassword(e.target.value)}
+                        placeholder="Digite sua senha cadastrada"
+                        className="w-full h-11 pl-10 pr-10 rounded-xl bg-[#0b1326] text-[#dae2fd] text-xs sm:text-sm border border-[#3c4a42]/60 focus:border-[#c0c1ff] focus:outline-none transition-all shadow-inner font-mono-metric"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowStudentPassword(!showStudentPassword)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#86948a] hover:text-[#dae2fd] cursor-pointer"
+                      >
+                        {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <button
                 type="submit"
@@ -285,10 +412,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 ) : (
                   <>
                     <Smartphone className="w-4 h-4" />
-                    <span>Acessar Meu Treino PWA</span>
+                    <span>Entrar e Ver Minha Ficha de Treino</span>
                   </>
                 )}
               </button>
+
+              {/* Help tip */}
+              <div className="text-center pt-1">
+                <p className="text-[11px] text-[#86948a]">
+                  Recebeu um link de convite? Clique nele para abrir diretamente a criação de senha.
+                </p>
+              </div>
             </form>
           )}
 

@@ -24,7 +24,11 @@ import {
   Target,
   ArrowUpDown,
   Filter,
-  AlertCircle
+  AlertCircle,
+  Copy,
+  KeyRound,
+  ExternalLink,
+  Check
 } from 'lucide-react';
 
 interface StudentManagementProps {
@@ -76,7 +80,25 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     auto_lock: true,
   });
 
-  const [createdStudentLink, setCreatedStudentLink] = useState<{ name: string; phone: string; link: string } | null>(null);
+  const [createdStudentLink, setCreatedStudentLink] = useState<{
+    name: string;
+    phone: string;
+    link: string;
+    inviteUrl: string;
+    studentId: string;
+  } | null>(null);
+  const [copiedSuccessModalLink, setCopiedSuccessModalLink] = useState(false);
+  const [copiedStudentId, setCopiedStudentId] = useState<string | null>(null);
+
+  const copyStudentInviteLink = (student: Student, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const inviteUrl = `${window.location.origin}?convite=${student.id}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(inviteUrl);
+      setCopiedStudentId(student.id);
+      setTimeout(() => setCopiedStudentId(null), 2500);
+    }
+  };
 
   // Helper to compute expiration stats
   const getStudentAccessInfo = (student: Student) => {
@@ -149,7 +171,11 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     e.preventDefault();
     if (!formData.full_name.trim()) return;
 
+    const studentId = `student-${Date.now()}`;
+    const inviteUrl = `${window.location.origin}?convite=${studentId}`;
+
     const newStudentData: Partial<Student> = {
+      id: studentId,
       full_name: formData.full_name,
       email: formData.email || `${formData.full_name.toLowerCase().replace(/\s+/g, '.')}@aluno.com`,
       phone: formData.phone || '(11) 98765-4321',
@@ -164,21 +190,24 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       auto_lock: formData.auto_lock,
       cycle_info: 'Ciclo 1 • Início de Prescrição',
       last_workout_date: 'Aguardando 1º Treino',
-      last_workout_name: 'Ficha Inicial Prescrita'
+      last_workout_name: 'Ficha Inicial Prescrita',
+      password_set: false,
+      invite_token: studentId
     };
 
     onAddStudent(newStudentData);
 
-    // Generate WhatsApp welcome link
+    // Generate WhatsApp welcome link with direct web app onboarding link
     const cleanPhone = getCleanWhatsAppDigits(formData.phone);
-    const appUrl = window.location.origin;
-    const shareMessage = `Olá ${formData.full_name}! Seu acesso ao aplicativo de treinos está liberado. Acesse pelo link: ${appUrl} (Válido até ${new Date(formData.access_expiration_date).toLocaleDateString('pt-BR')}). Bons treinos!`;
+    const shareMessage = `Olá ${formData.full_name}! Seu acesso à consultoria TrainerPro foi liberado pelo seu treinador.\n\nAcesse pelo link abaixo para cadastrar sua senha e visualizar sua ficha de treino:\n🔗 ${inviteUrl}\n\n(Acesso válido até ${new Date(formData.access_expiration_date).toLocaleDateString('pt-BR')})\nBons treinos! 💪`;
     const waLink = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(shareMessage)}`;
 
     setCreatedStudentLink({
       name: formData.full_name,
       phone: formData.phone,
       link: waLink,
+      inviteUrl: inviteUrl,
+      studentId: studentId
     });
   };
 
@@ -736,6 +765,20 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     <span>WhatsApp</span>
                   </button>
 
+                  {/* Copy Invite / Password Setup Link */}
+                  <button
+                    type="button"
+                    onClick={(e) => copyStudentInviteLink(student, e)}
+                    className="p-1.5 rounded-lg bg-[#222a3d] hover:bg-[#31394d] text-[#bbcabf] hover:text-[#4edea3] border border-[#3c4a42]/40 transition-colors"
+                    title={copiedStudentId === student.id ? "Link copiado!" : "Copiar link de convite / criar senha"}
+                  >
+                    {copiedStudentId === student.id ? (
+                      <Check className="w-4 h-4 text-[#10b981]" />
+                    ) : (
+                      <KeyRound className="w-4 h-4" />
+                    )}
+                  </button>
+
                   {/* Quick Renew Button */}
                   <button
                     type="button"
@@ -937,6 +980,19 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             <span className="hidden sm:inline">WhatsApp</span>
                           </button>
 
+                          {/* Copy Invite Link */}
+                          <button
+                            onClick={(e) => copyStudentInviteLink(student, e)}
+                            className="p-1.5 rounded-lg text-[#bbcabf] hover:text-[#4edea3] hover:bg-[#222a3d] transition-colors"
+                            title={copiedStudentId === student.id ? "Link copiado!" : "Copiar link de convite do aluno"}
+                          >
+                            {copiedStudentId === student.id ? (
+                              <Check className="w-4 h-4 text-[#10b981]" />
+                            ) : (
+                              <KeyRound className="w-4 h-4" />
+                            )}
+                          </button>
+
                           {/* Quick Renew */}
                           <button
                             onClick={() => handleOpenRenewModal(student)}
@@ -1124,31 +1180,95 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 </div>
 
                 <div className="p-4 rounded-xl bg-[#0b1326] border border-[#3c4a42]/50 text-left space-y-2">
-                  <span className="font-mono-metric text-[11px] uppercase text-[#86948a] font-semibold">
-                    Link de Convite / App
-                  </span>
-                  <div className="p-2.5 rounded-lg bg-[#171f33] text-xs font-mono-metric text-[#4edea3] break-all border border-[#3c4a42]/30">
-                    {window.location.origin}?aluno={encodeURIComponent(createdStudentLink.name)}
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono-metric text-[11px] uppercase text-[#86948a] font-semibold flex items-center gap-1.5">
+                      <KeyRound className="w-3.5 h-3.5 text-[#4edea3]" />
+                      Link Direto de Ativação / Criar Senha
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                          navigator.clipboard.writeText(createdStudentLink.inviteUrl);
+                          setCopiedSuccessModalLink(true);
+                          setTimeout(() => setCopiedSuccessModalLink(false), 2500);
+                        }
+                      }}
+                      className="text-xs font-semibold text-[#4edea3] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedSuccessModalLink ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-[#10b981]" />
+                          <span>Copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copiar Link</span>
+                        </>
+                      )}
+                    </button>
                   </div>
+
+                  <div className="p-2.5 rounded-lg bg-[#171f33] text-xs font-mono-metric text-[#4edea3] break-all border border-[#3c4a42]/30 flex items-center justify-between gap-2">
+                    <span className="truncate">{createdStudentLink.inviteUrl}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                          navigator.clipboard.writeText(createdStudentLink.inviteUrl);
+                          setCopiedSuccessModalLink(true);
+                          setTimeout(() => setCopiedSuccessModalLink(false), 2500);
+                        }
+                      }}
+                      className="p-1 rounded hover:bg-[#222a3d] text-[#86948a] hover:text-[#dae2fd] transition-colors flex-shrink-0 cursor-pointer"
+                      title="Copiar Link"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-[#bbcabf]">
+                    Ao abrir este link, o aluno cadastrará sua senha pessoal e terá acesso imediato à sua ficha de treino.
+                  </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
                   <a
                     href={createdStudentLink.link}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#10b981] to-[#4edea3] text-[#003824] font-bold text-sm hover:brightness-110 shadow-lg shadow-[#10b981]/20 transition-all"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-[#10b981] to-[#4edea3] text-[#003824] font-bold text-xs sm:text-sm hover:brightness-110 shadow-lg shadow-[#10b981]/20 transition-all cursor-pointer"
                   >
                     <Send className="w-4 h-4" />
                     <span>Enviar Acesso via WhatsApp</span>
                   </a>
 
                   <button
+                    type="button"
+                    onClick={() => {
+                      const found = students.find(s => s.id === createdStudentLink.studentId);
+                      if (found && onSimulateAsStudent) {
+                        setIsNewStudentModalOpen(false);
+                        setCreatedStudentLink(null);
+                        // Redirect to the invite link in same window
+                        window.location.search = `?convite=${createdStudentLink.studentId}`;
+                      } else {
+                        window.location.search = `?convite=${createdStudentLink.studentId}`;
+                      }
+                    }}
+                    className="flex items-center justify-center gap-1.5 px-3.5 py-3 rounded-xl bg-[#222a3d] hover:bg-[#31394d] text-[#c0c1ff] text-xs sm:text-sm font-semibold border border-[#3c4a42]/40 transition-colors cursor-pointer"
+                    title="Testar tela de criação de senha do aluno"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Testar Link</span>
+                  </button>
+
+                  <button
                     onClick={() => {
                       setIsNewStudentModalOpen(false);
                       setCreatedStudentLink(null);
                     }}
-                    className="px-5 py-3 rounded-xl bg-[#222a3d] text-[#dae2fd] text-sm font-semibold hover:bg-[#31394d]"
+                    className="px-4 py-3 rounded-xl bg-[#222a3d] text-[#dae2fd] text-xs sm:text-sm font-semibold hover:bg-[#31394d] cursor-pointer"
                   >
                     Concluir
                   </button>
