@@ -34,9 +34,7 @@ export default function App() {
     if (inviteResult && inviteResult.isNew) {
       finalStudents = [inviteResult.student, ...loadedStudents];
       saveStoredStudents(finalStudents);
-      const studentPlans = createDefaultPlansForStudent(inviteResult.student);
-      finalPlans = [...studentPlans, ...loadedPlans];
-      saveStoredWorkoutPlans(finalPlans);
+      // New student starts awaiting trainer prescription - no fake/dummy plans!
     }
 
     return {
@@ -85,10 +83,7 @@ export default function App() {
           const updatedStudents = [result.student, ...students];
           setStudents(updatedStudents);
           saveStoredStudents(updatedStudents);
-          const studentPlans = createDefaultPlansForStudent(result.student);
-          const updatedPlans = [...studentPlans, ...workoutPlans];
-          setWorkoutPlans(updatedPlans);
-          saveStoredWorkoutPlans(updatedPlans);
+          // New student starts awaiting prescription - no fake/dummy plans
         }
         setSelectedStudent(result.student);
         setOnboardingStudent(result.student);
@@ -104,7 +99,7 @@ export default function App() {
     };
   }, [students, workoutPlans]);
 
-  // Add new student and create their personalized workout plan
+  // Add new student (Created with "Aguardando Prescrição" until trainer builds workout)
   const handleAddStudent = (newStudentData: Partial<Student>) => {
     const studentId = newStudentData.id || `student-${Date.now()}`;
     const newStudent: Student = {
@@ -123,20 +118,14 @@ export default function App() {
       access_expiration_date: newStudentData.access_expiration_date || new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
       is_active: true,
       auto_lock: newStudentData.auto_lock ?? true,
-      last_workout_date: 'Aguardando 1º Treino',
-      last_workout_name: 'Ficha Prescrita',
+      last_workout_date: 'Aguardando Prescrição',
+      last_workout_name: 'Ficha Pendente',
       created_at: new Date().toISOString(),
       invite_token: studentId,
       password_set: false
     };
 
-    // Generate and synchronously save initial workout plan
-    const initialPlans = createDefaultPlansForStudent(newStudent);
-    const updatedPlans = [...initialPlans, ...workoutPlans];
-    setWorkoutPlans(updatedPlans);
-    saveStoredWorkoutPlans(updatedPlans);
-
-    // Synchronously save student
+    // Synchronously save student without creating dummy workout plans
     const updatedStudents = [newStudent, ...students];
     setStudents(updatedStudents);
     saveStoredStudents(updatedStudents);
@@ -162,15 +151,6 @@ export default function App() {
     setStudents(updatedStudents);
     saveStoredStudents(updatedStudents);
 
-    // Ensure student has plans
-    const studentPlans = workoutPlans.filter(p => p.student_id === finalizedStudent.id);
-    if (studentPlans.length === 0) {
-      const newPlans = createDefaultPlansForStudent(finalizedStudent);
-      const updatedPlans = [...newPlans, ...workoutPlans];
-      setWorkoutPlans(updatedPlans);
-      saveStoredWorkoutPlans(updatedPlans);
-    }
-
     setSelectedStudent(finalizedStudent);
     setOnboardingStudent(null);
     setIsAuthenticated(true);
@@ -181,7 +161,7 @@ export default function App() {
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (e) {}
 
-    setOnboardingSuccessToast(`🎉 Senha cadastrada com sucesso! Bem-vindo(a) à sua ficha de treino, ${finalizedStudent.full_name}!`);
+    setOnboardingSuccessToast(`🎉 Senha cadastrada com sucesso! Bem-vindo(a) à sua área de treino, ${finalizedStudent.full_name}!`);
     setTimeout(() => setOnboardingSuccessToast(null), 6000);
   };
 
@@ -206,7 +186,17 @@ export default function App() {
 
   // Save workout plans
   const handleSaveWorkoutPlans = (newPlans: WorkoutPlan[]) => {
-    setWorkoutPlans(newPlans);
+    // Preserve other students' plans and update this student's plans
+    const otherPlans = workoutPlans.filter(p => p.student_id !== selectedStudent.id);
+    const updated = [...newPlans, ...otherPlans];
+    setWorkoutPlans(updated);
+    saveStoredWorkoutPlans(updated);
+
+    const hasAnyExercises = newPlans.some(p => p.exercises && p.exercises.length > 0);
+    handleUpdateStudent(selectedStudent.id, {
+      last_workout_name: hasAnyExercises ? 'Ficha Prescrita' : 'Ficha Pendente',
+      last_workout_date: hasAnyExercises ? 'Prescrito Hoje' : 'Aguardando Prescrição'
+    });
   };
 
   // Log exercise set from PWA
@@ -288,9 +278,8 @@ export default function App() {
     );
   }
 
-  // Effective workout plans for selected student
+  // Effective workout plans strictly for the selected student
   const studentPlans = workoutPlans.filter(p => p.student_id === selectedStudent.id);
-  const effectiveWorkoutPlans = studentPlans.length > 0 ? studentPlans : workoutPlans;
 
   // 3. If in PWA student mode, show full-screen mobile app layout
   if (activeView === 'student-pwa') {
@@ -307,7 +296,7 @@ export default function App() {
         )}
         <StudentPWA
           student={selectedStudent}
-          workoutPlans={effectiveWorkoutPlans}
+          workoutPlans={studentPlans}
           onLogExerciseSet={handleLogExerciseSet}
           onExitPWA={() => setActiveView('trainer-students')}
           onLogout={handleLogout}
@@ -345,6 +334,7 @@ export default function App() {
         {activeView === 'trainer-students' && (
           <StudentManagement
             students={students}
+            workoutPlans={workoutPlans}
             onSelectStudent={setSelectedStudent}
             onAddStudent={handleAddStudent}
             onUpdateStudent={handleUpdateStudent}
@@ -373,7 +363,7 @@ export default function App() {
         {activeView === 'trainer-builder' && (
           <WorkoutBuilder
             student={selectedStudent}
-            workoutPlans={workoutPlans}
+            workoutPlans={studentPlans}
             onSaveWorkoutPlans={handleSaveWorkoutPlans}
             onViewStudentPWA={() => setActiveView('student-pwa')}
           />

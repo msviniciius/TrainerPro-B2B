@@ -3,6 +3,8 @@ import { Student, WorkoutPlan, WorkoutExercise, ExerciseLog, PersonalTrainer } f
 import { EXERCISES_DATABASE } from '../../data/exercisesData';
 import { ExerciseMedia } from '../common/ExerciseMedia';
 import { soundManager } from '../../utils/audio';
+import { lockScreenManager } from '../../utils/lockScreenManager';
+import { getExerciseGifUrl } from '../../utils/exerciseMedia';
 import { PWAInstallButton } from '../common/PWAInstallButton';
 import { 
   Dumbbell, 
@@ -28,9 +30,14 @@ import {
   History,
   Sparkles,
   Smartphone,
+  Bell,
+  BellRing,
   Copy,
   CreditCard,
-  LogOut
+  LogOut,
+  ClipboardList,
+  MessageCircle,
+  Radio
 } from 'lucide-react';
 
 interface StudentPWAProps {
@@ -76,37 +83,133 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
   const isExpiring = !isBlocked && diffDays >= 0 && diffDays <= 5;
 
   // Local state for logged sets in current session: { [exerciseId-setIndex]: ActiveSetState }
-  const [sessionSets, setSessionSets] = useState<Record<string, ActiveSetState>>({
-    // Initial sample default
-    'we-001-0': { completed: true, actualReps: 10, actualWeight: 28 },
-    'we-001-1': { completed: true, actualReps: 10, actualWeight: 28 },
-  });
+  const [sessionSets, setSessionSets] = useState<Record<string, ActiveSetState>>({});
 
   // Sticky Rest Timer State
   const [timerActive, setTimerActive] = useState(false);
+  const [isTimerPaused, setIsTimerPaused] = useState(false);
   const [timerTotalSeconds, setTimerTotalSeconds] = useState(60);
   const [timerSecondsRemaining, setTimerSecondsRemaining] = useState(0);
   const [lastFinishedTimer, setLastFinishedTimer] = useState(false);
+  const [showManualTimerPresets, setShowManualTimerPresets] = useState(false);
+
+  // Active Exercise Tracker for Lock Screen & UI
+  const [currentActiveExercise, setCurrentActiveExercise] = useState<{
+    id: string;
+    name: string;
+    target_sets: number;
+    target_reps: string;
+    target_weight: number;
+    current_set?: number;
+  } | null>(null);
+
+  // Lock Screen & Notification Permissions
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(() =>
+    lockScreenManager.getNotificationPermission()
+  );
+  const [showLockScreenHelp, setShowLockScreenHelp] = useState(false);
 
   // Finished Session Modal
   const [showFinishedModal, setShowFinishedModal] = useState(false);
   const [sessionRPE, setSessionRPE] = useState<number>(8.5);
 
-  // Timer interval effect
+  // Set action callbacks for Lock Screen controls (Play/Pause, +30s, -15s, Restart)
+  useEffect(() => {
+    lockScreenManager.setActionCallbacks({
+      onPlay: () => setIsTimerPaused(false),
+      onPause: () => setIsTimerPaused(true),
+      onAddSeconds: (delta) => handleAdjustTimer(delta || 30),
+      onSubtractSeconds: (delta) => handleAdjustTimer(-(delta || 15)),
+      onRestart: () => handleRestartTimer(),
+    });
+  }, [timerTotalSeconds]);
+
+  // Sync Lock Screen Media Widget with active exercise and rest timer
+  useEffect(() => {
+    if (currentPlan) {
+      const defaultEx = currentPlan.exercises[0];
+      const activeEx = currentActiveExercise || (defaultEx ? {
+        id: defaultEx.exercise_id,
+        name: defaultEx.exercise?.name || 'Exercício',
+        target_sets: defaultEx.target_sets,
+        target_reps: defaultEx.target_reps,
+        target_weight: defaultEx.target_weight_kg || 0,
+        current_set: 1,
+      } : null);
+
+      const exName = activeEx?.name || 'Exercício de Musculação';
+      const artworkUrl = activeEx?.id ? getExerciseGifUrl(activeEx.id) : undefined;
+      const setLabel = activeEx?.current_set
+        ? `Série ${activeEx.current_set}/${activeEx.target_sets} (${activeEx.target_reps} reps • ${activeEx.target_weight}kg)`
+        : `Alvo: ${activeEx?.target_sets || 4} séries • ${activeEx?.target_reps || '10-12'} reps`;
+
+      if (timerActive || lastFinishedTimer) {
+        lockScreenManager.updateLockScreen({
+          exerciseName: exName,
+          setInfo: lastFinishedTimer
+            ? '✅ Descanso Concluído! Inicie a próxima série'
+            : `⏱️ ${formatTime(timerSecondsRemaining)} • ${setLabel}`,
+          planName: `Treino ${activeSplitDay} - ${currentPlan.name}`,
+          artworkUrl,
+          isResting: true,
+          restSecondsRemaining: timerSecondsRemaining,
+          restTotalSeconds: timerTotalSeconds,
+          isPaused: isTimerPaused,
+        });
+      } else {
+        lockScreenManager.updateLockScreen({
+          exerciseName: exName,
+          setInfo: `Pronto para iniciar • ${setLabel}`,
+          planName: `Treino ${activeSplitDay} - ${currentPlan.name}`,
+          artworkUrl,
+          isResting: false,
+          restSecondsRemaining: 0,
+          restTotalSeconds: 0,
+          isPaused: false,
+        });
+      }
+    }
+  }, [
+    timerActive,
+    timerSecondsRemaining,
+    isTimerPaused,
+    lastFinishedTimer,
+    activeSplitDay,
+    currentPlan,
+    currentActiveExercise,
+    timerTotalSeconds,
+  ]);
+
+  // Timer interval effect - robust countdown with lock screen notification at zero
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
 
-    if (timerActive && timerSecondsRemaining > 0) {
+    if (timerActive && !isTimerPaused) {
       interval = setInterval(() => {
         setTimerSecondsRemaining(prev => {
           if (prev <= 1) {
             // Timer finished
             setTimerActive(false);
+            setIsTimerPaused(false);
             setLastFinishedTimer(true);
+            
             if (soundEnabled) {
               soundManager.playCompletionChime();
               soundManager.triggerVibration([200, 100, 200, 100, 300]);
             }
+
+            // Trigger Lock Screen Notification
+            const exName = currentActiveExercise?.name || 'Próximo Exercício';
+            const nextSetNumber = (currentActiveExercise?.current_set || 1) + 1;
+            const nextInfo = currentActiveExercise?.target_sets && nextSetNumber <= currentActiveExercise.target_sets
+              ? `Próxima: Série ${nextSetNumber}/${currentActiveExercise.target_sets}`
+              : 'Pronto para a próxima série';
+
+            lockScreenManager.notifyRestCompleted(
+              exName,
+              `${nextInfo} • O tempo de descanso zerou!`
+            );
+
             return 0;
           }
 
@@ -123,12 +226,53 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [timerActive, timerSecondsRemaining, soundEnabled]);
+  }, [timerActive, isTimerPaused, soundEnabled, currentActiveExercise]);
 
-  // Start rest timer
+  // Auto-dismiss finished timer banner after 8s if untouched
+  useEffect(() => {
+    if (lastFinishedTimer) {
+      const dismissTimeout = setTimeout(() => {
+        setLastFinishedTimer(false);
+      }, 8000);
+      return () => clearTimeout(dismissTimeout);
+    }
+  }, [lastFinishedTimer]);
+
+  // Clean up lock screen media on unmount
+  useEffect(() => {
+    return () => {
+      lockScreenManager.clearLockScreen();
+    };
+  }, []);
+
+  // Start rest timer with a given duration
   const triggerRestTimer = (seconds: number) => {
-    setTimerTotalSeconds(seconds);
-    setTimerSecondsRemaining(seconds);
+    const validSec = Math.max(5, Number(seconds) || 60);
+    setTimerTotalSeconds(validSec);
+    setTimerSecondsRemaining(validSec);
+    setIsTimerPaused(false);
+    setTimerActive(true);
+    setLastFinishedTimer(false);
+    setShowManualTimerPresets(false);
+  };
+
+  // Adjust timer seconds (+30s / -15s)
+  const handleAdjustTimer = (delta: number) => {
+    setTimerSecondsRemaining(prev => {
+      const next = Math.max(0, prev + delta);
+      setTimerTotalSeconds(tot => Math.max(tot, next));
+      if (next > 0 && !timerActive) {
+        setTimerActive(true);
+        setLastFinishedTimer(false);
+      }
+      return next;
+    });
+  };
+
+  // Restart current timer
+  const handleRestartTimer = () => {
+    setTimerSecondsRemaining(timerTotalSeconds || 60);
+    setIsTimerPaused(false);
     setTimerActive(true);
     setLastFinishedTimer(false);
   };
@@ -153,6 +297,16 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
     }));
 
     if (nextCompleted) {
+      // Track currently active exercise for Lock Screen & UI
+      setCurrentActiveExercise({
+        id: workoutExercise.exercise_id,
+        name: workoutExercise.exercise?.name || 'Exercício',
+        target_sets: workoutExercise.target_sets,
+        target_reps: defaultReps,
+        target_weight: defaultWeight,
+        current_set: setIndex + 1,
+      });
+
       // Log set
       onLogExerciseSet({
         student_id: student.id,
@@ -194,10 +348,11 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
 
   const progressPercent = totalSetsInPlan > 0 ? Math.round((completedSetsCount / totalSetsInPlan) * 100) : 0;
 
-  // Format timer MM:SS
+  // Format timer MM:SS with strict safeguards
   const formatTime = (sec: number) => {
+    if (isNaN(sec) || sec < 0) return '00:00';
     const mins = Math.floor(sec / 60);
-    const remainingSecs = sec % 60;
+    const remainingSecs = Math.floor(sec % 60);
     return `${mins.toString().padStart(2, '0')}:${remainingSecs.toString().padStart(2, '0')}`;
   };
 
@@ -331,6 +486,129 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
   }
 
   // -------------------------------------------------------------
+  // RENDER: PENDING WORKOUT PRESCRIPTION (NO PLAN PRESCRIBED YET)
+  // -------------------------------------------------------------
+  const hasExercisesInPlan = workoutPlans && workoutPlans.some(p => p.exercises && p.exercises.length > 0);
+  if (!hasExercisesInPlan) {
+    return (
+      <div className="min-h-screen bg-[#0b1326] text-[#dae2fd] flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden">
+        {/* Glow background */}
+        <div className="absolute top-1/4 -right-20 w-80 h-80 bg-[#10b981]/15 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-1/4 -left-20 w-80 h-80 bg-[#3131c0]/15 rounded-full blur-3xl pointer-events-none"></div>
+
+        {/* Top bar with back / logout */}
+        <div className="w-full max-w-md flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-[#171f33] border border-[#3c4a42]/50 flex items-center justify-center text-[#4edea3]">
+              <Dumbbell className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-xs font-bold text-[#dae2fd] block">TrainerPro</span>
+              <span className="font-mono-metric text-[10px] text-[#4edea3]">Consultoria de Treinamento</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {onExitPWA && (
+              <button
+                onClick={onExitPWA}
+                className="px-2.5 py-1 rounded-xl bg-[#171f33] hover:bg-[#222a3d] text-[#c0c1ff] text-xs font-semibold border border-[#3c4a42]/40 transition-colors cursor-pointer"
+              >
+                Painel do Treinador
+              </button>
+            )}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="p-2 rounded-xl bg-[#ba1a1a]/20 text-[#ffb4ab] hover:bg-[#ba1a1a] hover:text-white transition-all border border-[#ba1a1a]/30 cursor-pointer"
+                title="Sair da Conta"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Pending Card */}
+        <div className="w-full max-w-md bg-[#171f33] rounded-3xl p-6 sm:p-8 border border-[#3c4a42]/60 shadow-2xl text-center space-y-5 animate-in zoom-in-95">
+          <div className="w-16 h-16 rounded-2xl bg-[#ffb95f]/15 text-[#ffb95f] flex items-center justify-center mx-auto border border-[#ffb95f]/30 shadow-lg shadow-[#ffb95f]/10">
+            <ClipboardList className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+            <span className="font-mono-metric text-[11px] uppercase font-bold text-[#ffb95f] tracking-wider bg-[#ffb95f]/15 px-3 py-1 rounded-full border border-[#ffb95f]/30 inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#ffb95f] animate-pulse"></span>
+              Ficha em Elaboração
+            </span>
+            <h1 className="text-xl font-bold text-[#dae2fd]">
+              Olá, {student.full_name.split(' ')[0]}!
+            </h1>
+            <p className="text-xs text-[#bbcabf] leading-relaxed">
+              Seu acesso à consultoria está <strong className="text-[#4edea3]">100% ativo</strong>. O Professor <strong className="text-[#dae2fd]">{trainerName}</strong> está elaborando sua periodização personalizada de treinos.
+            </p>
+            <p className="text-xs text-[#86948a] leading-relaxed">
+              Assim que o seu treino for prescrito e liberado pelo treinador, sua ficha com exercícios, vídeos e séries aparecerá aqui automaticamente!
+            </p>
+          </div>
+
+          {/* Student plan details */}
+          <div className="grid grid-cols-2 gap-2 text-left">
+            <div className="p-3 rounded-2xl bg-[#0b1326] border border-[#3c4a42]/40">
+              <span className="text-[10px] uppercase font-mono-metric text-[#86948a] block">Objetivo</span>
+              <span className="text-xs font-bold text-[#dae2fd] truncate block">{student.goal || 'Hipertrofia'}</span>
+            </div>
+            <div className="p-3 rounded-2xl bg-[#0b1326] border border-[#3c4a42]/40">
+              <span className="text-[10px] uppercase font-mono-metric text-[#86948a] block">Plano Contratado</span>
+              <span className="text-xs font-bold text-[#4edea3] truncate block">{student.plan_name || 'Consultoria'}</span>
+            </div>
+            <div className="p-3 rounded-2xl bg-[#0b1326] border border-[#3c4a42]/40">
+              <span className="text-[10px] uppercase font-mono-metric text-[#86948a] block">Acesso Válido Até</span>
+              <span className="text-xs font-bold text-[#dae2fd] truncate block">
+                {new Date(student.access_expiration_date).toLocaleDateString('pt-BR')}
+              </span>
+            </div>
+            <div className="p-3 rounded-2xl bg-[#0b1326] border border-[#3c4a42]/40">
+              <span className="text-[10px] uppercase font-mono-metric text-[#86948a] block">Status da Ficha</span>
+              <span className="text-xs font-bold text-[#ffb95f] truncate block">Aguardando Prescrição</span>
+            </div>
+          </div>
+
+          {/* Coach info & direct contact */}
+          <div className="p-3.5 rounded-2xl bg-[#0b1326] border border-[#3c4a42]/50 text-left flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {trainer?.avatar_url ? (
+                <img src={trainer.avatar_url} alt={trainerName} className="w-10 h-10 rounded-full object-cover border border-[#4edea3]/40 flex-shrink-0" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-[#10b981]/20 text-[#4edea3] flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  {trainerName.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0">
+                <span className="text-xs font-bold text-[#dae2fd] block truncate">{trainerName}</span>
+                <span className="font-mono-metric text-[11px] text-[#4edea3]">CREF {trainerCref}</span>
+              </div>
+            </div>
+
+            <a
+              href={`https://wa.me/${trainerPhone}?text=${encodeURIComponent(`Olá Professor ${trainerName.split(' ')[0]}! Acabei de ativar meu acesso ao app do aluno e gostaria de falar sobre a montagem da minha ficha de treino.`)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-2 rounded-xl bg-[#10b981]/20 hover:bg-[#10b981]/30 text-[#4edea3] text-xs font-bold flex items-center gap-1.5 border border-[#4edea3]/40 flex-shrink-0 transition-colors"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>WhatsApp</span>
+            </a>
+          </div>
+
+          <div className="pt-2">
+            <PWAInstallButton studentName={student.full_name} className="w-full" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
   // RENDER: ACTIVE PWA APP FOR STUDENT
   // -------------------------------------------------------------
   return (
@@ -355,6 +633,24 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                if (notificationPermission !== 'granted') {
+                  const perm = await lockScreenManager.requestNotificationPermission();
+                  setNotificationPermission(perm);
+                }
+                setShowLockScreenHelp(true);
+              }}
+              className={`p-2 rounded-xl border transition-all ${
+                notificationPermission === 'granted'
+                  ? 'bg-[#10b981]/20 border-[#10b981]/50 text-[#4edea3]'
+                  : 'bg-[#222a3d] border-[#3c4a42]/40 text-[#bbcabf] hover:text-[#dae2fd]'
+              }`}
+              title="Widget de Tela de Bloqueio & Notificações"
+            >
+              <Smartphone className="w-4 h-4" />
+            </button>
+
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
               className="p-2 rounded-xl bg-[#222a3d] text-[#bbcabf] hover:text-[#dae2fd]"
@@ -512,10 +808,15 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
                   </div>
 
                   <div className="absolute top-3 right-3">
-                    <span className="px-2 py-1 rounded-lg bg-[#0b1326]/90 backdrop-blur-md text-[#ffb95f] font-mono-metric text-xs font-semibold flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => triggerRestTimer(workoutExercise.rest_seconds || 60)}
+                      className="px-2.5 py-1 rounded-lg bg-[#0b1326]/90 backdrop-blur-md text-[#ffb95f] hover:text-[#4edea3] hover:bg-[#0b1326] border border-[#ffb95f]/30 hover:border-[#4edea3]/40 font-mono-metric text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-sm"
+                      title="Clique para iniciar o cronômetro de descanso"
+                    >
                       <Clock className="w-3 h-3" />
-                      {workoutExercise.rest_seconds}s descanso
-                    </span>
+                      <span>{workoutExercise.rest_seconds || 60}s descanso</span>
+                    </button>
                   </div>
 
                   <div className="absolute bottom-2.5 left-3 right-3">
@@ -621,81 +922,190 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
       </div>
 
       {/* ------------------------------------------------------------- */}
-      {/* 3. STICKY REST TIMER (CRONÔMETRO FLUTUANTE DE DESCANSO) */}
+      {/* 3. STICKY REST TIMER & MANUAL PRESETS */}
       {/* ------------------------------------------------------------- */}
       {timerActive || lastFinishedTimer ? (
-        <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto z-50 animate-in slide-in-from-bottom-5">
-          <div className="bg-[#171f33]/95 backdrop-blur-xl border border-[#3c4a42]/60 rounded-3xl p-4 shadow-2xl flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-mono-metric font-bold text-lg border ${
-                  timerSecondsRemaining <= 3 && timerSecondsRemaining > 0
-                    ? 'bg-[#ffb95f]/30 text-[#ffb95f] border-[#ffb95f] animate-ping'
-                    : lastFinishedTimer
-                    ? 'bg-[#10b981] text-[#003824] border-[#4edea3]'
-                    : 'bg-[#0b1326] text-[#4edea3] border-[#3c4a42]/50'
-                }`}>
-                  {lastFinishedTimer ? 'GO!' : formatTime(timerSecondsRemaining)}
+        <div className="fixed bottom-4 left-3 right-3 max-w-lg mx-auto z-50 animate-in slide-in-from-bottom-5">
+          <div className="bg-[#171f33]/98 backdrop-blur-xl border border-[#3c4a42]/70 rounded-2xl p-3 sm:p-3.5 shadow-2xl flex flex-col gap-2.5">
+            <div className="flex items-center justify-between gap-2">
+              {/* Left: Big Time Badge & Status */}
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <div
+                  className={`min-w-[80px] h-11 px-2.5 rounded-xl flex items-center justify-center font-mono-metric font-bold text-base sm:text-lg border flex-shrink-0 tracking-wider shadow-inner transition-colors ${
+                    lastFinishedTimer
+                      ? 'bg-[#10b981] text-[#003824] border-[#4edea3]'
+                      : timerSecondsRemaining <= 3 && timerSecondsRemaining > 0
+                      ? 'bg-[#ffb95f]/20 text-[#ffb95f] border-[#ffb95f] animate-pulse'
+                      : isTimerPaused
+                      ? 'bg-[#0b1326] text-[#bbcabf] border-[#3c4a42]/60'
+                      : 'bg-[#0b1326] text-[#4edea3] border-[#3c4a42]/80'
+                  }`}
+                >
+                  {lastFinishedTimer ? 'PRONTO!' : formatTime(timerSecondsRemaining)}
                 </div>
 
-                <div>
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-mono-metric text-xs uppercase font-bold text-[#4edea3]">
-                      {lastFinishedTimer ? 'Descanso Finalizado!' : 'Tempo de Descanso'}
+                    <span className="font-mono-metric text-xs uppercase font-bold text-[#4edea3] truncate">
+                      {lastFinishedTimer
+                        ? 'Descanso Concluído!'
+                        : isTimerPaused
+                        ? 'Cronômetro Pausado'
+                        : 'Descanso em Andamento'}
                     </span>
-                    <span className="w-2 h-2 rounded-full bg-[#4edea3] animate-pulse"></span>
+                    {!lastFinishedTimer && !isTimerPaused && (
+                      <span className="w-2 h-2 rounded-full bg-[#4edea3] animate-pulse flex-shrink-0"></span>
+                    )}
                   </div>
-                  <p className="text-xs text-[#bbcabf]">
-                    {lastFinishedTimer ? 'Inicie sua próxima série de treino' : 'Recuperação dos estoques de fosfocreatina'}
+                  <p className="text-[11px] text-[#bbcabf] truncate">
+                    {lastFinishedTimer
+                      ? 'Inicie a próxima série de exercícios'
+                      : 'Recuperação muscular em andamento'}
                   </p>
                 </div>
               </div>
 
-              {/* Timer Controls */}
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setTimerSecondsRemaining(prev => Math.max(0, prev - 15))}
-                  className="px-2 py-1.5 rounded-xl bg-[#222a3d] text-[#bbcabf] hover:text-[#dae2fd] text-xs font-mono-metric font-bold"
-                  title="-15 segundos"
-                >
-                  -15s
-                </button>
+              {/* Right: Quick Controls */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {!lastFinishedTimer ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustTimer(-15)}
+                      className="px-2 py-1.5 rounded-lg bg-[#222a3d] hover:bg-[#31394d] text-[#bbcabf] hover:text-[#dae2fd] text-xs font-mono-metric font-bold transition-colors cursor-pointer"
+                      title="-15 segundos"
+                    >
+                      -15s
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAdjustTimer(30)}
+                      className="px-2 py-1.5 rounded-lg bg-[#222a3d] hover:bg-[#31394d] text-[#4edea3] text-xs font-mono-metric font-bold transition-colors cursor-pointer"
+                      title="+30 segundos"
+                    >
+                      +30s
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsTimerPaused(prev => !prev)}
+                      className="p-1.5 rounded-lg bg-[#222a3d] hover:bg-[#31394d] text-[#dae2fd] transition-colors cursor-pointer"
+                      title={isTimerPaused ? 'Retomar' : 'Pausar'}
+                    >
+                      {isTimerPaused ? <Play className="w-4 h-4 text-[#4edea3]" /> : <Pause className="w-4 h-4 text-[#bbcabf]" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRestartTimer}
+                      className="p-1.5 rounded-lg bg-[#222a3d] hover:bg-[#31394d] text-[#bbcabf] hover:text-[#dae2fd] transition-colors cursor-pointer"
+                      title="Reiniciar tempo"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleRestartTimer}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#10b981] hover:bg-[#059669] text-[#003824] text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Repetir</span>
+                  </button>
+                )}
 
                 <button
-                  onClick={() => setTimerSecondsRemaining(prev => prev + 30)}
-                  className="px-2 py-1.5 rounded-xl bg-[#222a3d] text-[#4edea3] hover:bg-[#31394d] text-xs font-mono-metric font-bold"
-                  title="+30 segundos"
-                >
-                  +30s
-                </button>
-
-                <button
+                  type="button"
                   onClick={() => {
                     setTimerActive(false);
+                    setIsTimerPaused(false);
                     setLastFinishedTimer(false);
                   }}
-                  className="p-1.5 rounded-xl bg-[#222a3d] text-[#86948a] hover:text-[#ffb4ab]"
-                  title="Fechar Timer"
+                  className="p-1.5 rounded-lg bg-[#222a3d] hover:bg-[#31394d] text-[#86948a] hover:text-[#ffb4ab] transition-colors cursor-pointer"
+                  title="Fechar Cronômetro"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            {/* Progress bar */}
+            {/* Visual Progress Bar */}
             {!lastFinishedTimer && (
               <div className="w-full bg-[#0b1326] h-1.5 rounded-full overflow-hidden">
                 <div
-                  className="bg-gradient-to-r from-[#10b981] to-[#4edea3] h-full transition-all duration-1000"
+                  className="bg-gradient-to-r from-[#10b981] to-[#4edea3] h-full transition-all duration-300"
                   style={{
-                    width: `${Math.max(0, Math.min(100, ((timerTotalSeconds - timerSecondsRemaining) / timerTotalSeconds) * 100))}%`
+                    width: `${Math.max(
+                      0,
+                      Math.min(
+                        100,
+                        ((timerTotalSeconds - timerSecondsRemaining) / (timerTotalSeconds || 1)) * 100
+                      )
+                    )}%`
                   }}
                 ></div>
               </div>
             )}
+
+            {/* Lock Screen Live Widget Indicator */}
+            <div className="flex items-center justify-between pt-0.5 text-[10px] font-mono-metric border-t border-[#3c4a42]/30">
+              <div className="flex items-center gap-1.5 text-[#4edea3]">
+                <Radio className="w-3 h-3 text-[#10b981] animate-pulse" />
+                <span>Widget de Bloqueio Conectado</span>
+              </div>
+              <span className="text-[#86948a] truncate max-w-[150px]">
+                {currentActiveExercise?.name || 'Exercício Atual'}
+              </span>
+            </div>
           </div>
         </div>
-      ) : null}
+      ) : (
+        /* Floating Quick Rest Timer Bar when idle */
+        <div className="fixed bottom-4 left-4 right-4 max-w-sm mx-auto z-40">
+          {showManualTimerPresets ? (
+            <div className="bg-[#171f33]/95 backdrop-blur-xl border border-[#3c4a42]/70 rounded-2xl p-2.5 shadow-2xl animate-in slide-in-from-bottom-2">
+              <div className="flex items-center justify-between mb-2 px-1">
+                <span className="font-mono-metric text-[11px] font-bold uppercase text-[#4edea3] flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  Iniciar Cronômetro de Descanso
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowManualTimerPresets(false)}
+                  className="p-1 rounded-md text-[#86948a] hover:text-[#dae2fd]"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[30, 45, 60, 90].map(sec => (
+                  <button
+                    key={sec}
+                    type="button"
+                    onClick={() => triggerRestTimer(sec)}
+                    className="py-1.5 rounded-lg bg-[#222a3d] hover:bg-[#10b981] hover:text-[#003824] text-[#dae2fd] text-xs font-mono-metric font-bold transition-all cursor-pointer"
+                  >
+                    {sec}s
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => setShowManualTimerPresets(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#171f33]/90 hover:bg-[#222a3d] backdrop-blur-md text-[#bbcabf] hover:text-[#4edea3] border border-[#3c4a42]/60 shadow-lg text-xs font-mono-metric font-semibold transition-all active:scale-95 cursor-pointer"
+              >
+                <Clock className="w-3.5 h-3.5 text-[#4edea3]" />
+                <span>Cronômetro de Descanso</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ------------------------------------------------------------- */}
       {/* 4. FINISHED WORKOUT CELEBRATION MODAL */}
@@ -750,11 +1160,87 @@ export const StudentPWA: React.FC<StudentPWAProps> = ({
             <button
               onClick={() => {
                 setShowFinishedModal(false);
-                alert('Sessão registrada com sucesso no banco de dados do Coach Rodrigo!');
               }}
               className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#10b981] to-[#4edea3] text-[#003824] font-bold text-sm hover:brightness-110 shadow-lg shadow-[#10b981]/20 transition-all active:scale-95"
             >
               Salvar & Fechar Sessão
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* 5. LOCK SCREEN WIDGET & NOTIFICATIONS INFO MODAL */}
+      {/* ------------------------------------------------------------- */}
+      {showLockScreenHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-sm bg-[#171f33] border border-[#3c4a42]/70 rounded-3xl p-5 shadow-2xl space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#10b981]/20 text-[#4edea3] flex items-center justify-center border border-[#4edea3]/30">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-[#dae2fd]">Widget de Tela de Bloqueio</h3>
+                  <span className="text-[10px] font-mono-metric text-[#4edea3]">Media Session API • Tempo Real</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowLockScreenHelp(false)}
+                className="p-1 rounded-lg text-[#86948a] hover:text-[#dae2fd]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 text-xs text-[#bbcabf]">
+              <div className="p-3 rounded-2xl bg-[#0b1326] border border-[#3c4a42]/40 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-[#dae2fd]">
+                  <Radio className="w-3.5 h-3.5 text-[#10b981]" />
+                  <span>Reprodutor na Tela de Bloqueio</span>
+                </div>
+                <p className="text-[11px] text-[#86948a] leading-relaxed">
+                  Quando você bloqueia o celular, o reprodutor do sistema (igual ao do Spotify) exibe o <strong>exercício atual</strong>, a <strong>série</strong> e a <strong>contagem regressiva de descanso</strong> sem precisar desbloquear.
+                </p>
+                <div className="pt-1 flex items-center gap-2 text-[10px] font-mono-metric text-[#4edea3]">
+                  <span>• Pausar/Retomar</span>
+                  <span>• +30s / -15s</span>
+                  <span>• Barra de Progresso</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-[#0b1326] border border-[#3c4a42]/40 space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-[#dae2fd]">
+                  <BellRing className="w-3.5 h-3.5 text-[#ffb95f]" />
+                  <span>Notificação & Vibração ao Zerar</span>
+                </div>
+                <p className="text-[11px] text-[#86948a] leading-relaxed">
+                  Quando o descanso zerar, o celular vibra no seu bolso e dispara uma notificação avisando o início da próxima série.
+                </p>
+                {notificationPermission !== 'granted' ? (
+                  <button
+                    onClick={async () => {
+                      const perm = await lockScreenManager.requestNotificationPermission();
+                      setNotificationPermission(perm);
+                    }}
+                    className="mt-1.5 w-full py-2 rounded-xl bg-[#10b981] hover:bg-[#059669] text-[#003824] font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer"
+                  >
+                    Ativar Permissão de Notificação
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-[#4edea3] text-[11px] font-semibold pt-0.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Notificações na Tela de Bloqueio autorizadas</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowLockScreenHelp(false)}
+              className="w-full py-2.5 rounded-xl bg-[#222a3d] hover:bg-[#31394d] text-[#dae2fd] text-xs font-bold transition-colors cursor-pointer"
+            >
+              OK, Entendi
             </button>
           </div>
         </div>

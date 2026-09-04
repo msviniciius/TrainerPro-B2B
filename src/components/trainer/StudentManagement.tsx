@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Student, PlanTier } from '../../types/database';
+import { Student, PlanTier, WorkoutPlan } from '../../types/database';
 import { formatWhatsAppPhone, getCleanWhatsAppDigits } from '../../utils/formatters';
 import { generateStudentInviteUrl } from '../../utils/invite';
 import { 
@@ -34,6 +34,7 @@ import {
 
 interface StudentManagementProps {
   students: Student[];
+  workoutPlans?: WorkoutPlan[];
   onSelectStudent: (student: Student) => void;
   onAddStudent: (newStudent: Partial<Student>) => void;
   onUpdateStudent: (id: string, updates: Partial<Student>) => void;
@@ -48,6 +49,7 @@ interface StudentManagementProps {
 
 export const StudentManagement: React.FC<StudentManagementProps> = ({
   students,
+  workoutPlans,
   onSelectStudent,
   onAddStudent,
   onUpdateStudent,
@@ -643,6 +645,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             const access = getStudentAccessInfo(student);
             const isBlocked = access.status === 'blocked';
             const isExpiring = access.status === 'expiring';
+            const studentPlans = workoutPlans?.filter(p => p.student_id === student.id) || [];
+            const hasPrescribedPlan = studentPlans.some(p => p.exercises && p.exercises.length > 0);
 
             return (
               <div
@@ -711,7 +715,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#10b981]/20 text-[#4edea3] border border-[#4edea3]/30 font-mono-metric text-[10px] font-semibold whitespace-nowrap flex-shrink-0">
-                          <CheckCircle2 className="w-2.5 h-2.5 flex-shrink-0" />
+                          <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
                           Ativo
                         </span>
                       )}
@@ -752,8 +756,18 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
                     <div className="flex items-center gap-2 text-[#86948a] font-mono-metric text-[11px]">
                       <Dumbbell className="w-3.5 h-3.5 text-[#c0c1ff] flex-shrink-0" />
-                      <span className="text-[#dae2fd] truncate">{student.last_workout_name || 'Ficha A'}</span>
-                      <span className="text-[#86948a]">• {student.last_workout_date}</span>
+                      {hasPrescribedPlan ? (
+                        <>
+                          <span className="text-[#4edea3] font-semibold truncate">
+                            {student.last_workout_name || 'Ficha Prescrita'}
+                          </span>
+                          <span className="text-[#86948a]">• {student.last_workout_date || 'Ativo'}</span>
+                        </>
+                      ) : (
+                        <span className="text-[#ffb95f] font-semibold bg-[#ffb95f]/15 px-2 py-0.5 rounded-md border border-[#ffb95f]/30">
+                          Aguardando Prescrição
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -797,14 +811,26 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   </button>
 
                   {/* Workout Builder */}
-                  <button
-                    type="button"
-                    onClick={() => onEditWorkout(student)}
-                    className="p-1.5 rounded-lg bg-[#222a3d] hover:bg-[#31394d] text-[#bbcabf] hover:text-[#4edea3] border border-[#3c4a42]/40 transition-colors"
-                    title="Editar Ficha de Treino"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                  </button>
+                  {hasPrescribedPlan ? (
+                    <button
+                      type="button"
+                      onClick={() => onEditWorkout(student)}
+                      className="p-1.5 rounded-lg bg-[#222a3d] hover:bg-[#31394d] text-[#bbcabf] hover:text-[#4edea3] border border-[#3c4a42]/40 transition-colors cursor-pointer"
+                      title="Editar Ficha de Treino"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onEditWorkout(student)}
+                      className="flex items-center gap-1 h-8 px-2.5 rounded-lg bg-[#ffb95f]/20 hover:bg-[#ffb95f]/30 text-[#ffb95f] border border-[#ffb95f]/40 font-semibold text-xs transition-colors cursor-pointer"
+                      title="Montar Ficha de Treino agora"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Montar Ficha</span>
+                    </button>
+                  )}
 
                   {/* Analytics */}
                   <button
@@ -840,6 +866,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   const access = getStudentAccessInfo(student);
                   const isBlocked = access.status === 'blocked';
                   const isExpiring = access.status === 'expiring';
+                  const studentPlans = workoutPlans?.filter(p => p.student_id === student.id) || [];
+                  const hasPrescribedPlan = studentPlans.some(p => p.exercises && p.exercises.length > 0);
 
                   return (
                     <tr
@@ -904,19 +932,31 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         </div>
                       </td>
 
-                      {/* Column 3: Last workout */}
+                      {/* Column 3: Last workout / Prescription */}
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-2">
                           <span
                             className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                              isBlocked ? 'bg-[#ffb4ab]' : 'bg-[#4edea3]'
+                              !hasPrescribedPlan
+                                ? 'bg-[#ffb95f] animate-pulse'
+                                : isBlocked
+                                ? 'bg-[#ffb4ab]'
+                                : 'bg-[#4edea3]'
                             }`}
                           />
                           <div className="flex flex-col min-w-0">
-                            <span className="text-xs text-[#dae2fd] font-medium">{student.last_workout_date}</span>
-                            <span className="text-[11px] text-[#86948a] font-mono-metric truncate max-w-[150px]">
-                              {student.last_workout_name}
-                            </span>
+                            {hasPrescribedPlan ? (
+                              <>
+                                <span className="text-xs text-[#dae2fd] font-medium">{student.last_workout_date}</span>
+                                <span className="text-[11px] text-[#86948a] font-mono-metric truncate max-w-[150px]">
+                                  {student.last_workout_name}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="font-mono-metric text-[11px] text-[#ffb95f] font-semibold">
+                                Ficha Pendente
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -1008,14 +1048,25 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             <RefreshCw className="w-4 h-4" />
                           </button>
 
-                          {/* Edit Workout */}
-                          <button
-                            onClick={() => onEditWorkout(student)}
-                            className="p-1.5 rounded-lg text-[#bbcabf] hover:text-[#4edea3] hover:bg-[#222a3d] transition-colors"
-                            title="Editar Ficha de Treino"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
+                          {/* Edit / Montar Workout */}
+                          {hasPrescribedPlan ? (
+                            <button
+                              onClick={() => onEditWorkout(student)}
+                              className="p-1.5 rounded-lg text-[#bbcabf] hover:text-[#4edea3] hover:bg-[#222a3d] transition-colors cursor-pointer"
+                              title="Editar Ficha de Treino"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => onEditWorkout(student)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#ffb95f]/20 hover:bg-[#ffb95f]/30 text-[#ffb95f] border border-[#ffb95f]/30 text-xs font-semibold transition-colors cursor-pointer"
+                              title="Montar Ficha de Treino"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Montar Ficha</span>
+                            </button>
+                          )}
 
                           {/* Analytics */}
                           <button

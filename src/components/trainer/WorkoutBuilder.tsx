@@ -32,7 +32,52 @@ export const WorkoutBuilder: React.FC<WorkoutBuilderProps> = ({
   onViewStudentPWA
 }) => {
   const [activeSplitDay, setActiveSplitDay] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('A');
-  const [plans, setPlans] = useState<WorkoutPlan[]>(workoutPlans);
+
+  // Ensure there are always initialized plans (A, B, C) for this student
+  const defaultInitializedPlans = useMemo<WorkoutPlan[]>(() => {
+    if (workoutPlans && workoutPlans.length > 0) {
+      return workoutPlans;
+    }
+    return [
+      {
+        id: `plan-${student.id}-A`,
+        student_id: student.id,
+        split_day: 'A',
+        title: 'Treino A - Peito e Tríceps',
+        target_muscle_groups: ['Peito', 'Tríceps', 'Ombro'],
+        estimated_duration_min: 50,
+        target_rpe: 8,
+        exercises: []
+      },
+      {
+        id: `plan-${student.id}-B`,
+        student_id: student.id,
+        split_day: 'B',
+        title: 'Treino B - Dorsais e Bíceps',
+        target_muscle_groups: ['Costas', 'Bíceps'],
+        estimated_duration_min: 50,
+        target_rpe: 8,
+        exercises: []
+      },
+      {
+        id: `plan-${student.id}-C`,
+        student_id: student.id,
+        split_day: 'C',
+        title: 'Treino C - Membros Inferiores',
+        target_muscle_groups: ['Quadríceps', 'Posterior', 'Panturrilha'],
+        estimated_duration_min: 55,
+        target_rpe: 8.5,
+        exercises: []
+      }
+    ];
+  }, [student.id, workoutPlans]);
+
+  const [plans, setPlans] = useState<WorkoutPlan[]>(defaultInitializedPlans);
+
+  // Synchronize when student changes
+  React.useEffect(() => {
+    setPlans(defaultInitializedPlans);
+  }, [defaultInitializedPlans]);
 
   // Modals & Drawers
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
