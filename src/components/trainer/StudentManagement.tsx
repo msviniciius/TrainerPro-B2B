@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Student, PlanTier } from '../../types/database';
 import { formatWhatsAppPhone, getCleanWhatsAppDigits } from '../../utils/formatters';
+import { generateStudentInviteUrl } from '../../utils/invite';
 import { 
   Users, 
   Dumbbell, 
@@ -39,6 +40,7 @@ interface StudentManagementProps {
   onViewAnalytics: (student: Student) => void;
   onEditWorkout: (student: Student) => void;
   onSimulateAsStudent?: (student: Student) => void;
+  onOpenInviteOnboarding?: (student: Student) => void;
   isNewStudentModalOpen: boolean;
   setIsNewStudentModalOpen: (open: boolean) => void;
   searchQuery: string;
@@ -52,6 +54,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   onViewAnalytics,
   onEditWorkout,
   onSimulateAsStudent,
+  onOpenInviteOnboarding,
   isNewStudentModalOpen,
   setIsNewStudentModalOpen,
   searchQuery,
@@ -92,7 +95,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
   const copyStudentInviteLink = (student: Student, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const inviteUrl = `${window.location.origin}?convite=${student.id}`;
+    const inviteUrl = generateStudentInviteUrl(student);
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(inviteUrl);
       setCopiedStudentId(student.id);
@@ -172,10 +175,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     if (!formData.full_name.trim()) return;
 
     const studentId = `student-${Date.now()}`;
-    const inviteUrl = `${window.location.origin}?convite=${studentId}`;
 
-    const newStudentData: Partial<Student> = {
+    const newStudentData: Student = {
       id: studentId,
+      trainer_id: 'trainer-001',
       full_name: formData.full_name,
       email: formData.email || `${formData.full_name.toLowerCase().replace(/\s+/g, '.')}@aluno.com`,
       phone: formData.phone || '(11) 98765-4321',
@@ -192,10 +195,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       last_workout_date: 'Aguardando 1º Treino',
       last_workout_name: 'Ficha Inicial Prescrita',
       password_set: false,
-      invite_token: studentId
+      invite_token: studentId,
+      created_at: new Date().toISOString()
     };
 
     onAddStudent(newStudentData);
+
+    const inviteUrl = generateStudentInviteUrl(newStudentData);
 
     // Generate WhatsApp welcome link with direct web app onboarding link
     const cleanPhone = getCleanWhatsAppDigits(formData.phone);
@@ -1246,14 +1252,40 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      const found = students.find(s => s.id === createdStudentLink.studentId);
-                      if (found && onSimulateAsStudent) {
-                        setIsNewStudentModalOpen(false);
-                        setCreatedStudentLink(null);
-                        // Redirect to the invite link in same window
-                        window.location.search = `?convite=${createdStudentLink.studentId}`;
+                      const target = students.find(s => s.id === createdStudentLink.studentId) || ({
+                        id: createdStudentLink.studentId,
+                        trainer_id: 'trainer-001',
+                        full_name: createdStudentLink.name,
+                        email: `${createdStudentLink.name.toLowerCase().replace(/\s+/g, '.')}@aluno.com`,
+                        phone: createdStudentLink.phone,
+                        plan_tier: 'trimestral',
+                        plan_name: 'Trimestral VIP',
+                        goal: 'Hipertrofia',
+                        cycle_info: 'Ciclo 1 • Início de Prescrição',
+                        age: 28,
+                        weight_kg: 75,
+                        weight_diff_kg: 0,
+                        access_expiration_date: new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
+                        is_active: true,
+                        auto_lock: true,
+                        last_workout_date: 'Aguardando 1º Treino',
+                        last_workout_name: 'Ficha Prescrita',
+                        created_at: new Date().toISOString(),
+                        invite_token: createdStudentLink.studentId,
+                        password_set: false
+                      } as Student);
+
+                      setIsNewStudentModalOpen(false);
+                      setCreatedStudentLink(null);
+
+                      try {
+                        window.history.pushState({}, '', createdStudentLink.inviteUrl);
+                      } catch (e) {}
+
+                      if (onOpenInviteOnboarding) {
+                        onOpenInviteOnboarding(target);
                       } else {
-                        window.location.search = `?convite=${createdStudentLink.studentId}`;
+                        window.location.href = createdStudentLink.inviteUrl;
                       }
                     }}
                     className="flex items-center justify-center gap-1.5 px-3.5 py-3 rounded-xl bg-[#222a3d] hover:bg-[#31394d] text-[#c0c1ff] text-xs sm:text-sm font-semibold border border-[#3c4a42]/40 transition-colors cursor-pointer"

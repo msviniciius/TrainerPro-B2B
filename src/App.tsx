@@ -8,6 +8,7 @@ import {
   saveStoredWorkoutPlans, 
   createDefaultPlansForStudent 
 } from './utils/storage';
+import { parseStudentInviteFromUrl } from './utils/invite';
 import { Header } from './components/common/Header';
 import { Sidebar } from './components/common/Sidebar';
 import { StudentManagement } from './components/trainer/StudentManagement';
@@ -21,19 +22,45 @@ import { StudentSetPasswordScreen } from './components/auth/StudentSetPasswordSc
 import { Users, SplitSquareVertical, BarChart3, Smartphone, Database, CheckCircle2, X } from 'lucide-react';
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
-  const [activeView, setActiveView] = useState<
-    'trainer-students' | 'trainer-builder' | 'trainer-analytics' | 'trainer-profile' | 'student-pwa' | 'supabase-sql'
-  >('trainer-students');
+  // Check invite immediately upon app initialization (synchronous - zero flicker!)
+  const initialData = React.useMemo(() => {
+    const loadedStudents = getStoredStudents();
+    const loadedPlans = getStoredWorkoutPlans();
+    const inviteResult = parseStudentInviteFromUrl(loadedStudents);
+
+    let finalStudents = loadedStudents;
+    let finalPlans = loadedPlans;
+
+    if (inviteResult && inviteResult.isNew) {
+      finalStudents = [inviteResult.student, ...loadedStudents];
+      saveStoredStudents(finalStudents);
+      const studentPlans = createDefaultPlansForStudent(inviteResult.student);
+      finalPlans = [...studentPlans, ...loadedPlans];
+      saveStoredWorkoutPlans(finalPlans);
+    }
+
+    return {
+      students: finalStudents,
+      plans: finalPlans,
+      onboardingStudent: inviteResult ? inviteResult.student : null
+    };
+  }, []);
 
   const [trainer, setTrainer] = useState<PersonalTrainer>(CURRENT_TRAINER);
-  const [students, setStudents] = useState<Student[]>(() => getStoredStudents());
-  const [selectedStudent, setSelectedStudent] = useState<Student>(() => students[0] || INITIAL_STUDENTS[0]);
-  const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>(() => getStoredWorkoutPlans());
+  const [students, setStudents] = useState<Student[]>(initialData.students);
+  const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>(initialData.plans);
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>(MOCK_EXERCISE_LOGS);
   const [sessions, setSessions] = useState<WorkoutSession[]>(MOCK_SESSIONS);
 
-  const [onboardingStudent, setOnboardingStudent] = useState<Student | null>(null);
+  const [onboardingStudent, setOnboardingStudent] = useState<Student | null>(initialData.onboardingStudent);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!initialData.onboardingStudent);
+  const [activeView, setActiveView] = useState<
+    'trainer-students' | 'trainer-builder' | 'trainer-analytics' | 'trainer-profile' | 'student-pwa' | 'supabase-sql'
+  >(initialData.onboardingStudent ? 'student-pwa' : 'trainer-students');
+
+  const [selectedStudent, setSelectedStudent] = useState<Student>(
+    initialData.onboardingStudent || initialData.students[0] || INITIAL_STUDENTS[0]
+  );
   const [onboardingSuccessToast, setOnboardingSuccessToast] = useState<string | null>(null);
 
   const [isNewStudentModalOpen, setIsNewStudentModalOpen] = useState(false);
@@ -49,28 +76,33 @@ export default function App() {
     saveStoredWorkoutPlans(workoutPlans);
   }, [workoutPlans]);
 
-  // Check URL query parameters for student invite/onboarding link
+  // Listen for URL or popstate changes with invite params
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const inviteParam = params.get('convite') || params.get('invite') || params.get('token') || params.get('aluno');
-
-    if (inviteParam) {
-      const cleanParam = decodeURIComponent(inviteParam).trim().toLowerCase();
-      const cleanDigits = cleanParam.replace(/\D/g, '');
-
-      const matched = students.find(s => 
-        s.id.toLowerCase() === cleanParam ||
-        (s.invite_token && s.invite_token.toLowerCase() === cleanParam) ||
-        (s.email && s.email.toLowerCase() === cleanParam) ||
-        (s.full_name && s.full_name.toLowerCase() === cleanParam) ||
-        (cleanDigits.length >= 8 && s.phone && s.phone.replace(/\D/g, '').includes(cleanDigits))
-      );
-
-      if (matched) {
-        setOnboardingStudent(matched);
+    const handleCheckUrlInvite = () => {
+      const result = parseStudentInviteFromUrl(students);
+      if (result) {
+        if (result.isNew) {
+          const updatedStudents = [result.student, ...students];
+          setStudents(updatedStudents);
+          saveStoredStudents(updatedStudents);
+          const studentPlans = createDefaultPlansForStudent(result.student);
+          const updatedPlans = [...studentPlans, ...workoutPlans];
+          setWorkoutPlans(updatedPlans);
+          saveStoredWorkoutPlans(updatedPlans);
+        }
+        setSelectedStudent(result.student);
+        setOnboardingStudent(result.student);
+        setIsAuthenticated(false);
       }
-    }
-  }, [students]);
+    };
+
+    window.addEventListener('popstate', handleCheckUrlInvite);
+    window.addEventListener('hashchange', handleCheckUrlInvite);
+    return () => {
+      window.removeEventListener('popstate', handleCheckUrlInvite);
+      window.removeEventListener('hashchange', handleCheckUrlInvite);
+    };
+  }, [students, workoutPlans]);
 
   // Add new student and create their personalized workout plan
   const handleAddStudent = (newStudentData: Partial<Student>) => {
@@ -79,7 +111,7 @@ export default function App() {
       id: studentId,
       trainer_id: 'trainer-001',
       full_name: newStudentData.full_name || 'Novo Aluno',
-      email: newStudentData.email || 'aluno@email.com',
+      email: newStudentData.email || `${(newStudentData.full_name || 'aluno').toLowerCase().replace(/\s+/g, '.')}@aluno.com`,
       phone: newStudentData.phone || '+55 (11) 98765-4321',
       plan_tier: newStudentData.plan_tier || 'trimestral',
       plan_name: newStudentData.plan_name || 'Trimestral VIP',
@@ -88,7 +120,7 @@ export default function App() {
       age: newStudentData.age || 28,
       weight_kg: newStudentData.weight_kg || 75,
       weight_diff_kg: 0,
-      access_expiration_date: newStudentData.access_expiration_date || '2026-12-01',
+      access_expiration_date: newStudentData.access_expiration_date || new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0],
       is_active: true,
       auto_lock: newStudentData.auto_lock ?? true,
       last_workout_date: 'Aguardando 1º Treino',
@@ -98,18 +130,48 @@ export default function App() {
       password_set: false
     };
 
-    // Generate initial workout plan for the student so they have a complete workout sheet immediately
+    // Generate and synchronously save initial workout plan
     const initialPlans = createDefaultPlansForStudent(newStudent);
-    setWorkoutPlans(prev => [...initialPlans, ...prev]);
+    const updatedPlans = [...initialPlans, ...workoutPlans];
+    setWorkoutPlans(updatedPlans);
+    saveStoredWorkoutPlans(updatedPlans);
 
-    setStudents(prev => [newStudent, ...prev]);
+    // Synchronously save student
+    const updatedStudents = [newStudent, ...students];
+    setStudents(updatedStudents);
+    saveStoredStudents(updatedStudents);
     setSelectedStudent(newStudent);
+
+    return newStudent;
   };
 
   // Complete onboarding from link (Sets password & logs in to view workout sheet)
-  const handleCompleteOnboarding = (updatedStudent: Student) => {
-    setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
-    setSelectedStudent(updatedStudent);
+  const handleCompleteOnboarding = (updatedStudent: Student, password?: string) => {
+    const finalizedStudent: Student = {
+      ...updatedStudent,
+      password: password || updatedStudent.password || 'aluno123',
+      password_set: true,
+      is_active: true
+    };
+
+    // Update students list
+    const updatedStudents = students.some(s => s.id === finalizedStudent.id)
+      ? students.map(s => s.id === finalizedStudent.id ? finalizedStudent : s)
+      : [finalizedStudent, ...students];
+
+    setStudents(updatedStudents);
+    saveStoredStudents(updatedStudents);
+
+    // Ensure student has plans
+    const studentPlans = workoutPlans.filter(p => p.student_id === finalizedStudent.id);
+    if (studentPlans.length === 0) {
+      const newPlans = createDefaultPlansForStudent(finalizedStudent);
+      const updatedPlans = [...newPlans, ...workoutPlans];
+      setWorkoutPlans(updatedPlans);
+      saveStoredWorkoutPlans(updatedPlans);
+    }
+
+    setSelectedStudent(finalizedStudent);
     setOnboardingStudent(null);
     setIsAuthenticated(true);
     setActiveView('student-pwa');
@@ -119,7 +181,7 @@ export default function App() {
       window.history.replaceState({}, document.title, window.location.pathname);
     } catch (e) {}
 
-    setOnboardingSuccessToast(`🎉 Senha cadastrada com sucesso! Bem-vindo(a) à sua ficha de treino, ${updatedStudent.full_name}!`);
+    setOnboardingSuccessToast(`🎉 Senha cadastrada com sucesso! Bem-vindo(a) à sua ficha de treino, ${finalizedStudent.full_name}!`);
     setTimeout(() => setOnboardingSuccessToast(null), 6000);
   };
 
@@ -289,6 +351,11 @@ export default function App() {
             onViewAnalytics={handleViewAnalytics}
             onEditWorkout={handleEditWorkout}
             onSimulateAsStudent={handleSimulateAsStudent}
+            onOpenInviteOnboarding={(student) => {
+              setSelectedStudent(student);
+              setOnboardingStudent(student);
+              setIsAuthenticated(false);
+            }}
             isNewStudentModalOpen={isNewStudentModalOpen}
             setIsNewStudentModalOpen={setIsNewStudentModalOpen}
             searchQuery={searchQuery}
